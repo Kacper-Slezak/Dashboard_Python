@@ -40,3 +40,4 @@ def google_fit_credentials():
     except Exception as e:
         print(f"Błąd: {str(e)}")
         raise
+
