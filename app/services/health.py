@@ -163,6 +163,7 @@ class GoogleFitServices:
         body = {
             "aggregateBy": [{
                 "dataTypeName": "com.google.sleep.segment",
+                "dataSourceId": "derived:com.google.sleep.segment:com.google.android.gms:merged"
             }],
             "bucketByTime": {"durationMillis": 86400000},  # 24 godziny w milisekundach
             "startTimeMillis": start_time,
@@ -179,7 +180,7 @@ class GoogleFitServices:
             response: Surowa odpowiedź z API Google Fit.
 
         Returns:
-            Lista słowników z danymi o śnie, zawierającymi informacje o 
+            Lista słowników z danymi o śnie, zawierającymi informacje o
             długości i jakości snu dla każdej nocy.
         """
         sleep_data = []
@@ -216,30 +217,22 @@ class GoogleFitServices:
                                 "stage": stage
                             })
             if sleep_segments:
-                # Obliczamy statystyki
                 total_minutes = sum(segment["duration"] for segment in sleep_segments)
-                light_minutes = sum(segment["duration"] for segment in sleep_segments if segment["stage"] == "light")
-                deep_minutes = sum(segment["duration"] for segment in sleep_segments if segment["stage"] == "deep")
-                rem_minutes = sum(segment["duration"] for segment in sleep_segments if segment["stage"] == "rem")
-                awake_minutes = sum(segment["duration"] for segment in sleep_segments if segment["stage"] == "awake")
-
-                # Znajdujemy najwcześniejszy i najpóźniejszy czas
-                min_time = min(segment["start_time"] for segment in sleep_segments)
-                max_time = max(segment["end_time"] for segment in sleep_segments)
+                light_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] in ["light", "awake"])
+                deep_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "deep")
+                rem_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "rem")
+                awake_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "awake")
 
                 sleep_data.append({
                     "date": date.strftime("%Y-%m-%d"),
-                    "start_time": min_time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "end_time": max_time.strftime("%Y-%m-%d %H:%M:%S"),
                     "total_minutes": total_minutes,
                     "light_minutes": light_minutes,
                     "deep_minutes": deep_minutes,
                     "rem_minutes": rem_minutes,
                     "awake_minutes": awake_minutes,
-                    "efficiency": (total_minutes - awake_minutes) / total_minutes if total_minutes > 0 else 0
+                    "efficiency": (total_minutes - awake_minutes) / total_minutes * 100 if total_minutes > 0 else 0
                 })
-
-        return sleep_data
+            return sleep_data
 
     def get_activity_data(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """
@@ -320,6 +313,17 @@ class GoogleFitServices:
             })
 
         return activity_data
+
+    def get_health_trends(self, data: dict) -> dict:
+        trends = {}
+        for key, df in data.items():
+            if not df.empty:
+                df['date'] = pd.to_datetime(df['date'])
+                trends[key] = {
+                    "weekly_avg": df.resample('W', on='date').mean().to_dict(),
+                    "monthly_max": df.resample('M', on='date').max().to_dict()
+                }
+        return trends
 
     def get_all_health_data(self, start_date: datetime, end_date: datetime) -> Dict[str, pd.DataFrame]:
         """

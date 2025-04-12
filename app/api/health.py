@@ -24,6 +24,7 @@ router = APIRouter(
 
 @router.get('/steps')
 async def get_steps(
+        current_user: User = Depends(get_current_user),
         start_date: Optional[str] = Query(None, description="Data początkowa w formacie YYYY-MM-DD"),
         end_date: Optional[str] = Query(None, description="Data końcowa w formacie YYYY-MM-DD")
 ):
