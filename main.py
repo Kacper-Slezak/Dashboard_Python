@@ -26,7 +26,7 @@ app = FastAPI(title="Personal Health & Finance Dashboard",
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Inicjalizacja szablonów
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
 # Dodawanie routerów
 app.include_router(health_router, prefix="/api", tags=["health"])
