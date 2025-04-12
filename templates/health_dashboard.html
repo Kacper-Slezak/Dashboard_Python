@@ -6,11 +6,14 @@
     <title>Dashboard Zdrowia</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f5f5f5;
+            background-color: #f0f2f5;
         }
         .container {
             max-width: 1200px;
@@ -18,34 +21,40 @@
             padding: 20px;
         }
         .dashboard-header {
-            background-color: #4CAF50;
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
             color: white;
-            padding: 20px;
+            padding: 30px 20px;
             text-align: center;
-            margin-bottom: 20px;
-            border-radius: 5px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
         .card {
             background-color: white;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-radius: 12px;
             padding: 20px;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
         .chart-container {
             height: 300px;
-            margin-bottom: 20px;
         }
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
+            gap: 20px;
+            margin-bottom: 20px;
         }
         .stat-card {
             background-color: #f9f9f9;
-            border-radius: 5px;
+            border-radius: 10px;
             padding: 15px;
             text-align: center;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
         .stat-value {
             font-size: 24px;
@@ -57,312 +66,206 @@
             color: #666;
         }
         .date-selector {
-            margin-bottom: 20px;
+            margin-bottom: 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         .date-selector input {
             padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
         }
-        .date-selector button {
+        #refresh-btn {
             background-color: #4CAF50;
             color: white;
             border: none;
-            padding: 8px 15px;
-            border-radius: 4px;
+            padding: 10px 20px;
+            border-radius: 6px;
             cursor: pointer;
+            transition: background-color 0.2s, transform 0.2s;
+        }
+        #refresh-btn:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="dashboard-header">
-            <h1>Dashboard Zdrowia</h1>
-            <p>Twoje dane zdrowotne z Google Fit</p>
-        </div>
-
-        <div class="date-selector">
-            <div>
-                <label for="start-date">Data początkowa:</label>
-                <input type="date" id="start-date">
-            </div>
-            <div>
-                <label for="end-date">Data końcowa:</label>
-                <input type="date" id="end-date">
-            </div>
-            <button id="refresh-btn">Odśwież dane</button>
-        </div>
-
-        <div class="card">
-            <h2>Aktywność fizyczna</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="avg-steps">--</div>
-                    <div class="stat-label">Średnia kroków dziennie</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="total-distance">--</div>
-                    <div class="stat-label">Łączny dystans (km)</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="total-calories">--</div>
-                    <div class="stat-label">Kalorie (kcal)</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="active-minutes">--</div>
-                    <div class="stat-label">Aktywne minuty</div>
-                </div>
-            </div>
-            <div class="chart-container">
-                <canvas id="steps-chart"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <h2>Tętno</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="avg-heart-rate">--</div>
-                    <div class="stat-label">Średnie tętno</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="min-heart-rate">--</div>
-                    <div class="stat-label">Minimalne tętno</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="max-heart-rate">--</div>
-                    <div class="stat-label">Maksymalne tętno</div>
-                </div>
-            </div>
-            <div class="chart-container">
-                <canvas id="heart-rate-chart"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <h2>Sen</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="avg-sleep">--</div>
-                    <div class="stat-label">Średni czas snu (h)</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="deep-sleep">--</div>
-                    <div class="stat-label">Głęboki sen (min)</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="rem-sleep">--</div>
-                    <div class="stat-label">REM (min)</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="sleep-efficiency">--</div>
-                    <div class="stat-label">Efektywność snu</div>
-                </div>
-            </div>
-            <div class="chart-container">
-                <canvas id="sleep-chart"></canvas>
-            </div>
-        </div>
+<div class="container">
+    <div class="dashboard-header">
+        <h1>Dashboard Zdrowia</h1>
+        <p>Twoje dane zdrowotne z Google Fit</p>
     </div>
 
-    <script>
-        // Ustawienie domyślnych dat (ostatnie 7 dni)
-        document.addEventListener('DOMContentLoaded', function() {
-            const today = new Date();
-            const weekAgo = new Date();
-            weekAgo.setDate(today.getDate() - 7);
+    <div class="date-selector">
+        <div>
+            <label for="start-date">Data początkowa:</label>
+            <input type="date" id="start-date">
+        </div>
+        <div>
+            <label for="end-date">Data końcowa:</label>
+            <input type="date" id="end-date">
+        </div>
+        <button id="refresh-btn">Odśwież dane</button>
+    </div>
 
-            document.getElementById('end-date').valueAsDate = today;
-            document.getElementById('start-date').valueAsDate = weekAgo;
+    <div class="card">
+        <h2>Aktywność fizyczna</h2>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value" id="avg-steps">--</div><div class="stat-label">Średnia kroków</div></div>
+            <div class="stat-card"><div class="stat-value" id="total-distance">--</div><div class="stat-label">Dystans (km)</div></div>
+            <div class="stat-card"><div class="stat-value" id="total-calories">--</div><div class="stat-label">Kalorie</div></div>
+            <div class="stat-card"><div class="stat-value" id="active-minutes">--</div><div class="stat-label">Aktywne minuty</div></div>
+        </div>
+        <div class="chart-container"><canvas id="steps-chart"></canvas></div>
+    </div>
 
+    <div class="card">
+        <h2>Tętno</h2>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value" id="avg-heart-rate">--</div><div class="stat-label">Średnie tętno</div></div>
+            <div class="stat-card"><div class="stat-value" id="min-heart-rate">--</div><div class="stat-label">Min. tętno</div></div>
+            <div class="stat-card"><div class="stat-value" id="max-heart-rate">--</div><div class="stat-label">Maks. tętno</div></div>
+        </div>
+        <div class="chart-container"><canvas id="heart-rate-chart"></canvas></div>
+    </div>
+
+    <div class="card">
+        <h2>Sen</h2>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value" id="avg-sleep">--</div><div class="stat-label">Średni sen (h)</div></div>
+            <div class="stat-card"><div class="stat-value" id="deep-sleep">--</div><div class="stat-label">Sen głęboki</div></div>
+            <div class="stat-card"><div class="stat-value" id="rem-sleep">--</div><div class="stat-label">Sen REM</div></div>
+            <div class="stat-card"><div class="stat-value" id="sleep-efficiency">--</div><div class="stat-label">Efektywność</div></div>
+        </div>
+        <div class="chart-container"><canvas id="sleep-chart"></canvas></div>
+    </div>
+</div>
+
+<script>
+    let stepsChart = null;
+    let heartRateChart = null;
+    let sleepChart = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const today = new Date();
+        const weekAgo = new Date();
+        weekAgo.setDate(today.getDate() - 7);
+        document.getElementById('end-date').valueAsDate = today;
+        document.getElementById('start-date').valueAsDate = weekAgo;
+        fetchAndDisplayData();
+
+        document.getElementById('refresh-btn').addEventListener('click', () => {
             fetchAndDisplayData();
-
-            document.getElementById('refresh-btn').addEventListener('click', fetchAndDisplayData);
         });
+    });
 
-        function fetchAndDisplayData() {
-            const startDate = document.getElementById('start-date').value;
-            const endDate = document.getElementById('end-date').value;
+    async function fetchAndDisplayData() {
+        const start = document.getElementById('start-date').value;
+        const end = document.getElementById('end-date').value;
 
-            // Pobieranie wszystkich danych
-            fetch(`/api/health/all?start_date=${startDate}&end_date=${endDate}`)
-                .then(response => response.json())
-                .then(data => {
-                    updateStepsData(data.data.steps);
-                    updateHeartRateData(data.data.heart_rate);
-                    updateSleepData(data.data.sleep);
-                    updateActivityData(data.data.activity);
-                })
-                .catch(error => console.error('Błąd przy pobieraniu danych:', error));
+        try {
+            const response = await fetch(`/api/health/all?start_date=${start}&end_date=${end}`);
+            const data = await response.json();
+
+            updateStepsData(data.data.steps);
+            updateHeartRateData(data.data.heart_rate);
+            updateSleepData(data.data.sleep);
+            updateActivityData(data.data.activity);
+
+        } catch (err) {
+            console.error('Błąd przy pobieraniu danych:', err);
         }
+    }
 
-        function updateStepsData(stepsData) {
-            if (!stepsData || stepsData.length === 0) {
-                console.log("Brak danych o krokach");
-                return;
-            }
+    function updateStepsData(data) {
+        const total = data.reduce((s, d) => s + d.steps, 0);
+        document.getElementById('avg-steps').textContent = Math.round(total / data.length);
+        if (stepsChart) stepsChart.destroy();
+        const ctx = document.getElementById('steps-chart').getContext('2d');
+        stepsChart = new Chart(ctx, {
+            type: 'bar', data: {
+                labels: data.map(d => d.date),
+                datasets: [{
+                    label: 'Kroki',
+                    data: data.map(d => d.steps),
+                    backgroundColor: 'rgba(76,175,80,0.5)',
+                    borderColor: 'rgba(76,175,80,1)',
+                    borderWidth: 1
+                }]
+            }, options: {responsive: true, maintainAspectRatio: false}
+        });
+    }
 
-            // Obliczenie średniej kroków
-            const totalSteps = stepsData.reduce((sum, day) => sum + day.steps, 0);
-            const avgSteps = Math.round(totalSteps / stepsData.length);
-            document.getElementById('avg-steps').textContent = avgSteps.toLocaleString();
+    function updateHeartRateData(data) {
+        const avg = data.reduce((s, d) => s + d.avg_bpm, 0) / data.length;
+        const min = Math.min(...data.map(d => d.min_bpm));
+        const max = Math.max(...data.map(d => d.max_bpm));
+        document.getElementById('avg-heart-rate').textContent = avg.toFixed(0);
+        document.getElementById('min-heart-rate').textContent = min.toFixed(0);
+        document.getElementById('max-heart-rate').textContent = max.toFixed(0);
+        if (heartRateChart) heartRateChart.destroy();
+        const ctx = document.getElementById('heart-rate-chart').getContext('2d');
+        heartRateChart = new Chart(ctx, {
+            type: 'line', data: {
+                labels: data.map(d => d.date),
+                datasets: [{
+                    label: 'Średnie tętno',
+                    data: data.map(d => d.avg_bpm),
+                    backgroundColor: 'rgba(255,99,132,0.2)',
+                    borderColor: 'rgba(255,99,132,1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1
+                }]
+            }, options: {responsive: true, maintainAspectRatio: false}
+        });
+    }
 
-            // Wykres kroków
-            const ctx = document.getElementById('steps-chart').getContext('2d');
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: stepsData.map(day => day.date),
-                    datasets: [{
-                        label: 'Kroki',
-                        data: stepsData.map(day => day.steps),
-                        backgroundColor: 'rgba(76, 175, 80, 0.5)',
-                        borderColor: 'rgba(76, 175, 80, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
+    function updateSleepData(data) {
+        const avgHours = data.reduce((s, d) => s + d.total_minutes, 0) / data.length / 60;
+        const deep = data.reduce((s, d) => s + d.deep_minutes, 0) / data.length;
+        const rem = data.reduce((s, d) => s + d.rem_minutes, 0) / data.length;
+        const eff = data.reduce((s, d) => s + d.efficiency, 0) / data.length * 100;
+        document.getElementById('avg-sleep').textContent = avgHours.toFixed(1);
+        document.getElementById('deep-sleep').textContent = deep.toFixed(0);
+        document.getElementById('rem-sleep').textContent = rem.toFixed(0);
+        document.getElementById('sleep-efficiency').textContent = eff.toFixed(0) + '%';
+
+        if (sleepChart) sleepChart.destroy();
+        const ctx = document.getElementById('sleep-chart').getContext('2d');
+        sleepChart = new Chart(ctx, {
+            type: 'bar', data: {
+                labels: data.map(d => d.date),
+                datasets: [
+                    { label: 'Głęboki sen', data: data.map(d => d.deep_minutes), backgroundColor: 'rgba(54,162,235,0.8)' },
+                    { label: 'REM', data: data.map(d => d.rem_minutes), backgroundColor: 'rgba(153,102,255,0.8)' },
+                    { label: 'Lekki sen', data: data.map(d => d.light_minutes), backgroundColor: 'rgba(75,192,192,0.8)' },
+                    { label: 'Przebudzenia', data: data.map(d => d.awake_minutes), backgroundColor: 'rgba(255,159,64,0.8)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: true },
+                    y: { stacked: true, title: { display: true, text: 'Minuty' } }
                 }
-            });
-        }
-
-        function updateHeartRateData(heartRateData) {
-            if (!heartRateData || heartRateData.length === 0) {
-                console.log("Brak danych o tętnie");
-                return;
             }
+        });
+    }
 
-            // Aktualizacja statystyk tętna
-            const avgHeartRate = heartRateData.reduce((sum, day) => sum + day.avg_bpm, 0) / heartRateData.length;
-            const minHeartRate = Math.min(...heartRateData.map(day => day.min_bpm));
-            const maxHeartRate = Math.max(...heartRateData.map(day => day.max_bpm));
-
-            document.getElementById('avg-heart-rate').textContent = avgHeartRate.toFixed(0);
-            document.getElementById('min-heart-rate').textContent = minHeartRate.toFixed(0);
-            document.getElementById('max-heart-rate').textContent = maxHeartRate.toFixed(0);
-
-            // Wykres tętna
-            const ctx = document.getElementById('heart-rate-chart').getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: heartRateData.map(day => day.date),
-                    datasets: [{
-                        label: 'Średnie tętno',
-                        data: heartRateData.map(day => day.avg_bpm),
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: false
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateSleepData(sleepData) {
-            if (!sleepData || sleepData.length === 0) {
-                console.log("Brak danych o śnie");
-                return;
-            }
-
-            // Aktualizacja statystyk snu
-            const avgSleepHours = sleepData.reduce((sum, day) => sum + day.total_minutes, 0) / sleepData.length / 60;
-            const avgDeepSleep = sleepData.reduce((sum, day) => sum + day.deep_minutes, 0) / sleepData.length;
-            const avgRemSleep = sleepData.reduce((sum, day) => sum + day.rem_minutes, 0) / sleepData.length;
-            const avgEfficiency = sleepData.reduce((sum, day) => sum + day.efficiency, 0) / sleepData.length * 100;
-
-            document.getElementById('avg-sleep').textContent = avgSleepHours.toFixed(1);
-            document.getElementById('deep-sleep').textContent = avgDeepSleep.toFixed(0);
-            document.getElementById('rem-sleep').textContent = avgRemSleep.toFixed(0);
-            document.getElementById('sleep-efficiency').textContent = avgEfficiency.toFixed(0) + '%';
-
-            // Wykres snu
-            const ctx = document.getElementById('sleep-chart').getContext('2d');
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: sleepData.map(day => day.date),
-                    datasets: [
-                        {
-                            label: 'Głęboki sen',
-                            data: sleepData.map(day => day.deep_minutes),
-                            backgroundColor: 'rgba(54, 162, 235, 0.8)',
-                            stack: 'Stack 0'
-                        },
-                        {
-                            label: 'REM',
-                            data: sleepData.map(day => day.rem_minutes),
-                            backgroundColor: 'rgba(153, 102, 255, 0.8)',
-                            stack: 'Stack 0'
-                        },
-                        {
-                            label: 'Lekki sen',
-                            data: sleepData.map(day => day.light_minutes),
-                            backgroundColor: 'rgba(75, 192, 192, 0.8)',
-                            stack: 'Stack 0'
-                        },
-                        {
-                            label: 'Przebudzenia',
-                            data: sleepData.map(day => day.awake_minutes),
-                            backgroundColor: 'rgba(255, 159, 64, 0.8)',
-                            stack: 'Stack 0'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            stacked: true,
-                        },
-                        y: {
-                            stacked: true,
-                            title: {
-                                display: true,
-                                text: 'Minuty'
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateActivityData(activityData) {
-            if (!activityData || activityData.length === 0) {
-                console.log("Brak danych o aktywności");
-                return;
-            }
-
-            // Aktualizacja statystyk aktywności
-            const totalDistance = activityData.reduce((sum, day) => sum + day.distance, 0);
-            const totalCalories = activityData.reduce((sum, day) => sum + day.calories, 0);
-            const totalActiveMinutes = activityData.reduce((sum, day) => sum + day.active_minutes, 0);
-
-            document.getElementById('total-distance').textContent = totalDistance.toFixed(1);
-            document.getElementById('total-calories').textContent = Math.round(totalCalories).toLocaleString();
-            document.getElementById('active-minutes').textContent = totalActiveMinutes;
-        }
-    </script>
+    function updateActivityData(data) {
+        const distance = data.reduce((s, d) => s + d.distance, 0);
+        const calories = data.reduce((s, d) => s + d.calories, 0);
+        const active = data.reduce((s, d) => s + d.active_minutes, 0);
+        document.getElementById('total-distance').textContent = distance.toFixed(1);
+        document.getElementById('total-calories').textContent = Math.round(calories);
+        document.getElementById('active-minutes').textContent = active;
+    }
+</script>
 </body>
 </html>
