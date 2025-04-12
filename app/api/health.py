@@ -5,7 +5,7 @@ Ten moduł definiuje ścieżki API dla pobierania różnych kategorii danych zdr
 z Google Fit API oraz bazy danych, w tym danych o krokach, śnie i tętnie.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -225,13 +225,28 @@ class StepData(BaseModel):
     steps: int
 
 
-# Endpoint do przewidywania kroków
-@router.get("/predict/steps")
-def predict_steps_endpoint(days: int, steps_data: list[StepData]):
-    # Przekształcanie listy obiektów StepData na listę słowników
-    steps_data_list = [{"steps": data.steps} for data in steps_data]
+@router.post("/predict/steps")
+def predict_steps_endpoint(
+        request_data: dict = Body(...)  # Odbierz całe body jako słownik
+):
+    try:
+        days = request_data.get("days")
+        steps_data = request_data.get("steps_data", [])
 
-    # Używanie funkcji predict_steps
-    predicted_steps = predict_steps(steps_data_list)
+        # Walidacja danych
+        if not isinstance(days, int) or days < 1:
+            raise HTTPException(status_code=422, detail="Nieprawidłowa wartość 'days'")
 
-    return {"predicted_steps": predicted_steps}
+        if not isinstance(steps_data, list) or len(steps_data) < 2:
+            raise HTTPException(status_code=422, detail="Wymagane co najmniej 2 dni danych historycznych")
+
+        # Przekształć dane
+        steps_data_list = [{"steps": data["steps"]} for data in steps_data]
+
+        # Wywołaj predykcję
+        predicted_steps = predict_steps(steps_data_list)
+
+        return {"predicted_steps": predicted_steps}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Błąd serwera: {str(e)}")
