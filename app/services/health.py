@@ -1,30 +1,44 @@
+"""
+Moduł zawierający serwisy do pobierania danych zdrowotnych z Google Fit API.
+Ten moduł dostarcza kompleksową obsługę pobierania różnego rodzaju danych zdrowotnych
+z Google Fit, w tym dane o krokach, śnie, tętnie i aktywności fizycznej.
+"""
+
 from datetime import datetime
+from typing import List, Dict, Any
+from googleapiclient.discovery import build
+import pandas as pd
+
 from app.models.health import Sleep, HeartRate, Activity
 from database.db_setup import SessionLocal
-from typing import List, Dict, Any, Optional
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-import pandas as pd
 from config.google_auth import google_fit_credentials
-
-db = SessionLocal()
 
 
 class GoogleFitServices:
+    """
+    Klasa odpowiedzialna za pobieranie danych zdrowotnych z Google Fit API.
+
+    Zapewnia metody do interakcji z Google Fit API i pobierania różnych
+    kategorii danych zdrowotnych, takich jak kroki, sen, tętno i aktywność.
+    """
+
     def __init__(self):
+        """
+        Inicjalizuje serwis Google Fit z odpowiednimi uprawnieniami.
+        """
         self.google_fit_credentials = google_fit_credentials()
         self.service = build('fitness', 'v1', credentials=self.google_fit_credentials)
 
     def get_steps_data(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """
-        Pobiera liczbę kroków z określonego przedziału czasowego
+        Pobiera liczbę kroków z określonego przedziału czasowego.
 
         Args:
-            start_date: Data początkowa
-            end_date: Data końcowa
+            start_date: Data początkowa zakresu.
+            end_date: Data końcowa zakresu.
 
         Returns:
-            Lista słowników z datą i liczbą kroków
+            Lista słowników zawierających datę i liczbę kroków dla każdego dnia.
         """
         start_time = int(start_date.timestamp() * 1000)
         end_time = int(end_date.timestamp() * 1000)
@@ -34,7 +48,7 @@ class GoogleFitServices:
                 "dataTypeName": "com.google.step_count.delta",
                 "dataSourceId": "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps"
             }],
-            "bucketByTime": {"durationMillis": 86400000},
+            "bucketByTime": {"durationMillis": 86400000},  # 24 godziny w milisekundach
             "startTimeMillis": start_time,
             "endTimeMillis": end_time
         }
@@ -44,20 +58,20 @@ class GoogleFitServices:
 
     def _parse_steps_response(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Parsuje odpowiedź z API Google Fit dotyczącą kroków
+        Parsuje odpowiedź z API Google Fit dotyczącą kroków.
 
         Args:
-            response: Odpowiedź z API Google Fit
+            response: Surowa odpowiedź z API Google Fit.
 
         Returns:
-            Lista słowników z datą i liczbą kroków
+            Lista słowników z datą i liczbą kroków.
         """
         steps_data = []
         for bucket in response.get("bucket", []):
             start_time_millis = int(bucket.get("startTimeMillis", 0))
             date = datetime.fromtimestamp(start_time_millis / 1000)
 
-            # pobieramy dane o krokach
+            # Pobieramy dane o krokach
             steps = 0
             for dataset in bucket.get("dataset", []):
                 for point in dataset.get("point", []):
@@ -70,15 +84,78 @@ class GoogleFitServices:
 
         return steps_data
 
-    def get_sleep_data(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
+    def get_heart_rate_data(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """
-        Pobiera dane o śnie z okreśłonego przedziału czasowego
+        Pobiera dane o tętnie z określonego przedziału czasowego.
 
         Args:
-            start_date: Początkowa data
-            end_date: Końcowa data
+            start_date: Data początkowa zakresu.
+            end_date: Data końcowa zakresu.
+
         Returns:
-            Lista słowników z danymi o śnie
+            Lista słowników zawierających datę i pomiary tętna.
+        """
+        start_time = int(start_date.timestamp() * 1000)
+        end_time = int(end_date.timestamp() * 1000)
+
+        body = {
+            "aggregateBy": [{
+                "dataTypeName": "com.google.heart_rate.bpm",
+                "dataSourceId": "derived:com.google.heart_rate.bpm:com.google.android.gms:merge_heart_rate_bpm"
+            }],
+            "bucketByTime": {"durationMillis": 86400000},  # 24 godziny w milisekundach
+            "startTimeMillis": start_time,
+            "endTimeMillis": end_time
+        }
+
+        response = self.service.users().dataset().aggregate(userId='me', body=body).execute()
+        return self._parse_heart_rate_response(response)
+
+    def _parse_heart_rate_response(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Parsuje odpowiedź z API Google Fit dotyczącą tętna.
+
+        Args:
+            response: Surowa odpowiedź z API Google Fit.
+
+        Returns:
+            Lista słowników z datą, średnim, minimalnym i maksymalnym tętnem.
+        """
+        heart_rate_data = []
+
+        for bucket in response.get("bucket", []):
+            start_time_millis = int(bucket.get("startTimeMillis", 0))
+            date = datetime.fromtimestamp(start_time_millis / 1000)
+
+            hr_values = []
+
+            for dataset in bucket.get("dataset", []):
+                for point in dataset.get("point", []):
+                    for value in point.get("value", []):
+                        if "fpVal" in value:
+                            hr_values.append(value.get("fpVal"))
+
+            if hr_values:
+                heart_rate_data.append({
+                    "date": date.strftime("%Y-%m-%d"),
+                    "avg_bpm": round(sum(hr_values) / len(hr_values), 1),
+                    "min_bpm": min(hr_values),
+                    "max_bpm": max(hr_values),
+                    "readings_count": len(hr_values)
+                })
+
+        return heart_rate_data
+
+    def get_sleep_data(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
+        """
+        Pobiera dane o śnie z określonego przedziału czasowego.
+
+        Args:
+            start_date: Data początkowa zakresu.
+            end_date: Data końcowa zakresu.
+
+        Returns:
+            Lista słowników zawierających szczegółowe dane o śnie dla każdego dnia.
         """
         start_time = int(start_date.timestamp() * 1000)
         end_time = int(end_date.timestamp() * 1000)
@@ -87,7 +164,7 @@ class GoogleFitServices:
             "aggregateBy": [{
                 "dataTypeName": "com.google.sleep.segment",
             }],
-            "bucketByTime": {"durationMillis": 86400000},
+            "bucketByTime": {"durationMillis": 86400000},  # 24 godziny w milisekundach
             "startTimeMillis": start_time,
             "endTimeMillis": end_time
         }
@@ -96,13 +173,14 @@ class GoogleFitServices:
 
     def _parse_sleep(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Parsuje odpowiedzi z google fit API dotyczace snu
+        Parsuje odpowiedzi z Google Fit API dotyczące snu.
 
         Args:
-            response: Odpowiedzi z google fit API dotyczace snu
+            response: Surowa odpowiedź z API Google Fit.
 
         Returns:
-            Lista słowników z danymi o śnie
+            Lista słowników z danymi o śnie, zawierającymi informacje o 
+            długości i jakości snu dla każdej nocy.
         """
         sleep_data = []
 
@@ -163,16 +241,17 @@ class GoogleFitServices:
 
         return sleep_data
 
-    def get_activity_data(self, start_date: datetime.datetime, end_date: datetime.datetime) -> List[Dict[str, Any]]:
+    def get_activity_data(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """
-        Pobiera dane o aktywnościach fizycznych z określonego przedziału czasowego
+        Pobiera dane o aktywnościach fizycznych z określonego przedziału czasowego.
 
         Args:
-            start_date: Data początkowa
-            end_date: Data końcowa
+            start_date: Data początkowa zakresu.
+            end_date: Data końcowa zakresu.
 
         Returns:
-            Lista słowników z danymi o aktywnościach
+            Lista słowników zawierających dane o aktywnościach dla każdego dnia,
+            w tym kalorie, czas aktywności i przebyty dystans.
         """
         start_time = int(start_date.timestamp() * 1000)
         end_time = int(end_date.timestamp() * 1000)
@@ -192,7 +271,7 @@ class GoogleFitServices:
                     "dataSourceId": "derived:com.google.distance.delta:com.google.android.gms:merge_distance_delta"
                 }
             ],
-            "bucketByTime": {"durationMillis": 86400000},  # dzień
+            "bucketByTime": {"durationMillis": 86400000},  # 24 godziny w milisekundach
             "startTimeMillis": start_time,
             "endTimeMillis": end_time
         }
@@ -202,19 +281,19 @@ class GoogleFitServices:
 
     def _parse_activity_response(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Parsuje odpowiedź z API Google Fit dotyczącą aktywności
+        Parsuje odpowiedź z API Google Fit dotyczącą aktywności.
 
         Args:
-            response: Odpowiedź z API Google Fit
+            response: Surowa odpowiedź z API Google Fit.
 
         Returns:
-            Lista słowników z danymi o aktywnościach
+            Lista słowników z danymi o aktywnościach.
         """
         activity_data = []
 
         for bucket in response.get("bucket", []):
             start_time_millis = int(bucket.get("startTimeMillis"))
-            date = datetime.datetime.fromtimestamp(start_time_millis / 1000)
+            date = datetime.fromtimestamp(start_time_millis / 1000)
 
             # Inicjalizacja wartości dla danego dnia
             calories = 0
@@ -242,17 +321,23 @@ class GoogleFitServices:
 
         return activity_data
 
-    def get_all_health_data(self, start_date: datetime.datetime, end_date: datetime.datetime) -> Dict[
-        str, pd.DataFrame]:
+    def get_all_health_data(self, start_date: datetime, end_date: datetime) -> Dict[str, pd.DataFrame]:
         """
-        Pobiera wszystkie dane zdrowotne i zwraca je jako słownik DataFrames
+        Pobiera wszystkie dane zdrowotne i zwraca je jako słownik DataFrames.
+
+        Ta metoda agreguje dane z wszystkich dostępnych źródeł zdrowotnych
+        i konwertuje je do formatu DataFrame dla łatwiejszej analizy.
 
         Args:
-            start_date: Data początkowa
-            end_date: Data końcowa
+            start_date: Data początkowa zakresu.
+            end_date: Data końcowa zakresu.
 
         Returns:
-            Słownik z DataFrames dla każdego typu danych
+            Słownik z DataFrames dla każdego typu danych:
+            - steps: DataFrame z danymi o krokach
+            - heart_rate: DataFrame z danymi o tętnie
+            - sleep: DataFrame z danymi o śnie
+            - activity: DataFrame z danymi o aktywności
         """
         steps_data = self.get_steps_data(start_date, end_date)
         heart_rate_data = self.get_heart_rate_data(start_date, end_date)
