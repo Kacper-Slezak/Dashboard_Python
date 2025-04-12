@@ -23,8 +23,9 @@ def google_fit_credentials():
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
+                # Poprawiona nazwa pliku - bez podkreślnika na końcu
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    "config/client_secret_.json",
+                    "config/client_secret.json",
                     SCOPES
                 )
                 creds = flow.run_local_server(port=0)
@@ -40,4 +41,3 @@ def google_fit_credentials():
     except Exception as e:
         print(f"Błąd: {str(e)}")
         raise
-
