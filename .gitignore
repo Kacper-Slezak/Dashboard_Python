@@ -1,0 +1,17 @@
+.env
+config/token.json
+.venv/
+database/test.db
+.idea/
+build/
+dist/
+*.spec
+*.exe
+__pycache__/
+# Build artifacts
+/dist/
+/build/
+/main.spec
+
+# Sensitive files
+/config/token.json

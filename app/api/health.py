@@ -5,7 +5,7 @@ Ten moduł definiuje ścieżki API dla pobierania różnych kategorii danych zdr
 z Google Fit API oraz bazy danych, w tym danych o krokach, śnie i tętnie.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -13,6 +13,10 @@ from sqlalchemy.orm import Session
 from app.services.health import GoogleFitServices
 from app.models.health import HeartRate, Sleep, Activity
 from database.db_setup import get_db
+from app.services.auth import get_current_user
+from app.models.user import User
+from pydantic import BaseModel
+from app.services.predictions import predict_steps
 
 # Poprawne utworzenie obiektu router
 router = APIRouter(
@@ -24,6 +28,7 @@ router = APIRouter(
 
 @router.get('/steps')
 async def get_steps(
+        current_user: User = Depends(get_current_user),
         start_date: Optional[str] = Query(None, description="Data początkowa w formacie YYYY-MM-DD"),
         end_date: Optional[str] = Query(None, description="Data końcowa w formacie YYYY-MM-DD")
 ):
@@ -215,3 +220,33 @@ async def get_all_health_data(
             response_data[key] = []
 
     return {"data": response_data}
+
+class StepData(BaseModel):
+    steps: int
+
+
+@router.post("/predict/steps")
+def predict_steps_endpoint(
+        request_data: dict = Body(...)  # Odbierz całe body jako słownik
+):
+    try:
+        days = request_data.get("days")
+        steps_data = request_data.get("steps_data", [])
+
+        # Walidacja danych
+        if not isinstance(days, int) or days < 1:
+            raise HTTPException(status_code=422, detail="Nieprawidłowa wartość 'days'")
+
+        if not isinstance(steps_data, list) or len(steps_data) < 2:
+            raise HTTPException(status_code=422, detail="Wymagane co najmniej 2 dni danych historycznych")
+
+        # Przekształć dane
+        steps_data_list = [{"steps": data["steps"]} for data in steps_data]
+
+        # Wywołaj predykcję
+        predicted_steps = predict_steps(steps_data_list)
+
+        return {"predicted_steps": predicted_steps}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Błąd serwera: {str(e)}")

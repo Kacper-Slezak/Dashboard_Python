@@ -143,6 +143,13 @@
         </div>
         <div class="chart-container"><canvas id="sleep-chart"></canvas></div>
     </div>
+    <div class="card">
+    <h2>Przewidywania</h2>
+    <div class="stat-card">
+        <div class="stat-value" id="predicted-steps">--</div>
+        <div class="stat-label">Przewidywane kroki (jutro)</div>
+    </div>
+</div>
 </div>
 
 <script>
@@ -168,6 +175,7 @@
         const end = document.getElementById('end-date').value;
 
         try {
+            // Pobierz dane zdrowotne
             const response = await fetch(`/api/health/all?start_date=${start}&end_date=${end}`);
             const data = await response.json();
 
@@ -175,6 +183,33 @@
             updateHeartRateData(data.data.heart_rate);
             updateSleepData(data.data.sleep);
             updateActivityData(data.data.activity);
+
+            // Pobierz PRZEWIDYWANIE KROKÓW (POST z danymi historycznymi)
+            try {
+                const stepsHistory = data.data.steps.slice(-7); // Ostatnie 7 dni
+
+                const predictionResponse = await fetch('/api/health/predict/steps', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        days: 7,
+                        steps_data: stepsHistory.map(d => ({ steps: d.steps }))
+                    })
+                });
+
+                if (!predictionResponse.ok) {
+                    throw new Error(`HTTP error! status: ${predictionResponse.status}`);
+                }
+
+                const predictionData = await predictionResponse.json();
+                document.getElementById('predicted-steps').textContent = predictionData.predicted_steps;
+
+            } catch (predictionError) {
+                console.error('Błąd predykcji:', predictionError);
+                document.getElementById('predicted-steps').textContent = 'Błąd';
+            }
 
         } catch (err) {
             console.error('Błąd przy pobieraniu danych:', err);

@@ -7,7 +7,8 @@ from app.api.health import router as health_router
 from database.db_setup import engine
 from app.models.health import Base as HealthBase
 from app.models.user import Base as UserBase
-import os
+from app.api.auth import router as auth_router
+
 
 # Tworzenie katalogów, jeśli nie istnieją
 os.makedirs("templates", exist_ok=True)
@@ -25,11 +26,13 @@ app = FastAPI(title="Personal Health & Finance Dashboard",
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Inicjalizacja szablonów
-templates = Jinja2Templates(directory="templates")
+
+templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
 # Dodawanie routerów
 app.include_router(health_router, prefix="/api", tags=["health"])
 # app.include_router(finance_router, prefix="/api", tags=["finance"])  # Odkomentuj, gdy zaimplementujesz
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
