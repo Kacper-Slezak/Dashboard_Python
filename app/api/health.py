@@ -13,6 +13,10 @@ from sqlalchemy.orm import Session
 from app.services.health import GoogleFitServices
 from app.models.health import HeartRate, Sleep, Activity
 from database.db_setup import get_db
+from app.services.auth import get_current_user
+from app.models.user import User
+from pydantic import BaseModel
+from app.services.predictions import predict_steps
 
 # Poprawne utworzenie obiektu router
 router = APIRouter(
@@ -216,3 +220,18 @@ async def get_all_health_data(
             response_data[key] = []
 
     return {"data": response_data}
+
+class StepData(BaseModel):
+    steps: int
+
+
+# Endpoint do przewidywania kroków
+@router.get("/predict/steps")
+def predict_steps_endpoint(days: int, steps_data: list[StepData]):
+    # Przekształcanie listy obiektów StepData na listę słowników
+    steps_data_list = [{"steps": data.steps} for data in steps_data]
+
+    # Używanie funkcji predict_steps
+    predicted_steps = predict_steps(steps_data_list)
+
+    return {"predicted_steps": predicted_steps}

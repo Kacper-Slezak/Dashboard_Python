@@ -143,6 +143,13 @@
         </div>
         <div class="chart-container"><canvas id="sleep-chart"></canvas></div>
     </div>
+    <div class="card">
+    <h2>Przewidywania</h2>
+    <div class="stat-card">
+        <div class="stat-value" id="predicted-steps">--</div>
+        <div class="stat-label">Przewidywane kroki (jutro)</div>
+    </div>
+</div>
 </div>
 
 <script>
@@ -179,6 +186,8 @@
         } catch (err) {
             console.error('Błąd przy pobieraniu danych:', err);
         }
+        const prediction = await fetch(`/api/health/predict/steps?days=7`);
+    document.getElementById('predicted-steps').textContent = await prediction.json().prediction;
     }
 
     function updateStepsData(data) {

@@ -11,7 +11,7 @@ from database.db_setup import get_db
 
 SECRET_KEY = os.getenv('SECRET_KEY')
 ALGORITHM = os.getenv('ALGORITHM')
-ACCESS_TOKEN_EXPIRE = timedelta(minutes=int(os.getenv('ACCESS_TOKEN_EXPIRE')))
+ACCESS_TOKEN_EXPIRE = timedelta(minutes=int(os.getenv('ACCESS_TOKEN_EXPIRE', 30)))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
