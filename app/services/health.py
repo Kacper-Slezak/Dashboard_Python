@@ -172,11 +172,12 @@ class GoogleFitServices:
         response = self.service.users().dataset().aggregate(userId='me', body=body).execute()
         return self._parse_sleep(response)
 
+
+
     def _parse_sleep(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Parsuje odpowiedzi z Google Fit API dotyczące snu.
-
-        Args:
+            Args:
             response: Surowa odpowiedź z API Google Fit.
 
         Returns:
@@ -184,13 +185,7 @@ class GoogleFitServices:
             długości i jakości snu dla każdej nocy.
         """
         sleep_data = []
-
-        sleep_stages = {
-            1: "awake",
-            2: "light",
-            3: "deep",
-            4: "rem"
-        }
+        sleep_stages = {1: "awake", 2: "light", 3: "deep", 4: "rem"}
 
         for bucket in response.get("bucket", []):
             date_millis = int(bucket.get("startTimeMillis", 0))
@@ -218,7 +213,7 @@ class GoogleFitServices:
                             })
             if sleep_segments:
                 total_minutes = sum(segment["duration"] for segment in sleep_segments)
-                light_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] in ["light", "awake"])
+                light_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "light")
                 deep_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "deep")
                 rem_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "rem")
                 awake_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "awake")
@@ -232,8 +227,9 @@ class GoogleFitServices:
                     "awake_minutes": awake_minutes,
                     "efficiency": (total_minutes - awake_minutes) / total_minutes * 100 if total_minutes > 0 else 0
                 })
-            return sleep_data
 
+        # Fixed indentation - return moved outside the loop
+        return sleep_data
     def get_activity_data(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """
         Pobiera dane o aktywnościach fizycznych z określonego przedziału czasowego.
