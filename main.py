@@ -8,6 +8,7 @@ from database.db_setup import engine
 from app.models.health import Base as HealthBase
 from app.models.user import Base as UserBase
 from app.api.auth import router as auth_router
+import os
 
 
 # Tworzenie katalogów, jeśli nie istnieją
