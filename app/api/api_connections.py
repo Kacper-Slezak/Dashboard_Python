@@ -1,17 +1,18 @@
 # app/api/api_connections.py
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, relationship
 from app.services.auth import get_current_user
 from app.models.user import User
 from database.db_setup import get_db
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import secrets
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON
 from database.db_setup import Base
+import requests
 
 
 # Definicje modeli dla połączeń API
@@ -21,6 +22,7 @@ class ApiConnection(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
     provider = Column(String, nullable=False)  # np. 'google_fit', 'strava', itp.
+    user = relationship("User", back_populates="api_connections")
     access_token = Column(String)
     refresh_token = Column(String)
     token_expires_at = Column(DateTime)
@@ -49,7 +51,7 @@ class ApiConnectionResponse(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Router dla połączeń API
@@ -146,7 +148,8 @@ async def delete_api_connection(
 @router.post("/google-fit/auth", response_model=Dict[str, Any])
 async def initialize_google_fit_auth(
         request: Request,
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """
     Inicjalizuje proces autoryzacji z Google Fit.
@@ -157,9 +160,33 @@ async def initialize_google_fit_auth(
     # Generowanie stanu dla zabezpieczenia CSRF
     state = secrets.token_urlsafe(16)
 
+    # Zapisz stan w bazie danych dla późniejszej weryfikacji
+    connection_data = {"auth_state": state}
+
+    # Sprawdź, czy istnieje już połączenie z Google Fit dla tego użytkownika
+    existing_connection = db.query(ApiConnection).filter(
+        ApiConnection.user_id == current_user.id,
+        ApiConnection.provider == "google_fit"
+    ).first()
+
+    if existing_connection:
+        # Aktualizacja istniejącego połączenia
+        existing_connection.connection_data = connection_data
+        existing_connection.updated_at = datetime.now()
+        db.commit()
+    else:
+        # Utworzenie nowego połączenia (jeszcze bez tokenów)
+        new_connection = ApiConnection(
+            user_id=current_user.id,
+            provider="google_fit",
+            connection_data=connection_data
+        )
+        db.add(new_connection)
+        db.commit()
+
     # Adres zwrotny, na który Google przekieruje użytkownika po autoryzacji
     # Powinien być skonfigurowany w Google Cloud Console
-    redirect_uri = f"{request.base_url}api-connections/google-fit/callback"
+    redirect_uri = request.url_for("google_fit_callback")
 
     # Zakres uprawnień dla Google Fit
     scopes = [
@@ -170,8 +197,16 @@ async def initialize_google_fit_auth(
         "https://www.googleapis.com/auth/fitness.location.read"
     ]
 
+    # Sprawdzenie czy GOOGLE_CLIENT_ID jest dostępny
+    client_id = os.getenv('GOOGLE_CLIENT_ID')
+    if not client_id:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Brak konfiguracji GOOGLE_CLIENT_ID. Skontaktuj się z administratorem."
+        )
+
     # URL autoryzacji Google
-    auth_url = f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={os.getenv('GOOGLE_CLIENT_ID')}&redirect_uri={redirect_uri}&scope={'%20'.join(scopes)}&state={state}&access_type=offline&prompt=consent"
+    auth_url = f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope={'%20'.join(scopes)}&state={state}&access_type=offline&prompt=consent"
 
     return {
         "auth_url": auth_url,
@@ -184,7 +219,6 @@ async def initialize_google_fit_auth(
 async def google_fit_callback(
         code: str,
         state: str,
-        request: Request,
         db: Session = Depends(get_db)
 ):
     """
@@ -192,30 +226,82 @@ async def google_fit_callback(
 
     Wymienia kod autoryzacyjny na tokeny dostępu i odświeżania.
     """
-    # TODO: Weryfikacja stanu dla zabezpieczenia przed atakami CSRF
+    # Znajdź połączenie z tym stanem dla weryfikacji CSRF
+    connection = db.query(ApiConnection).filter(
+        ApiConnection.provider == "google_fit",
+        ApiConnection.connection_data.contains({"auth_state": state})
+    ).first()
+
+    if not connection:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nieprawidłowy stan autoryzacji. Spróbuj ponownie."
+        )
 
     # Adres API Google do wymiany kodu
     token_url = "https://oauth2.googleapis.com/token"
 
-    # Parametry potrzebne do wymiany kodu na tokeny
-    redirect_uri = f"{request.base_url}api-connections/google-fit/callback"
+    # Odbierz CLIENT_ID i CLIENT_SECRET z zmiennych środowiskowych
+    client_id = os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
 
-    # Użycie zewnętrznej biblioteki do wymiany kodu (np. requests)
-    # W rzeczywistym kodzie tutaj należałoby użyć biblioteki HTTP
-    # do wysłania żądania POST do Google
+    if not client_id or not client_secret:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Brak konfiguracji uwierzytelniania Google. Skontaktuj się z administratorem."
+        )
 
-    # Symulacja odpowiedzi od Google
-    # W prawdziwym kodzie tutaj byłaby odpowiedź z API Google
-    token_response = {
-        "access_token": "sample_access_token",
-        "refresh_token": "sample_refresh_token",
-        "expires_in": 3600  # sekundy
+    # Pełny URL do callbacku
+    redirect_uri = f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/api/api-connections/google-fit/callback"
+
+    # Parametry żądania wymiany kodu na tokeny
+    token_params = {
+        "code": code,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code"
     }
 
-    # Zapisanie tokenów w sesji lub przekazanie ich do innego endpointu
-    # do zapisania w bazie danych
+    try:
+        # Wykonanie żądania HTTP do Google API
+        response = requests.post(token_url, data=token_params)
+        response.raise_for_status()  # Sprawdzenie czy nie ma błędu HTTP
 
-    # Przekierowanie użytkownika do strony z informacją o sukcesie
-    return {"message": "Połączenie z Google Fit zostało ustanowione pomyślnie!"}
+        token_data = response.json()
 
-# Dodanie obsługi innych zewnętrznych API (np. Strava, Fitbit) w podobny sposób
+        # Pobierz tokeny z odpowiedzi
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        expires_in = token_data.get("expires_in", 3600)
+
+        if not access_token:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Nie udało się uzyskać tokenu dostępu od Google"
+            )
+
+        # Oblicz datę wygaśnięcia tokenu
+        token_expires_at = datetime.now() + timedelta(seconds=expires_in) if expires_in else None
+
+        # Aktualizuj połączenie w bazie danych
+        connection.access_token = access_token
+        connection.refresh_token = refresh_token
+        connection.token_expires_at = token_expires_at
+        connection.is_active = True
+        connection.updated_at = datetime.now()
+
+        db.commit()
+
+        return {"message": "Połączenie z Google Fit zostało ustanowione pomyślnie!", "success": True}
+
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Błąd podczas komunikacji z Google API: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Wystąpił nieoczekiwany błąd: {str(e)}"
+        )
