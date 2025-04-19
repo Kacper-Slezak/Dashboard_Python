@@ -9,41 +9,29 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from database.db_setup import get_db
 
-# Poprawne odczytanie zmiennych środowiskowych z wartościami domyślnymi
-SECRET_KEY = os.getenv('SECRET_KEY', 'tajny_klucz_zamienic_w_produkcji')
-ALGORITHM = os.getenv('ALGORITHM', 'HS256')
-# Konwersja na int z wartością domyślną w przypadku błędu
-try:
-    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '30'))
-except ValueError:
-    ACCESS_TOKEN_EXPIRE_MINUTES = 30
+SECRET_KEY = os.getenv('SECRET_KEY')
+ALGORITHM = os.getenv('ALGORITHM')
+ACCESS_TOKEN_EXPIRE = timedelta(minutes=int(os.getenv('ACCESS_TOKEN_EXPIRE', 30)))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")  # Poprawiona ścieżka
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-
 def get_password_hash(password):
     return pwd_context.hash(password)
 
-
-# services/auth.py
-
-def create_access_token(user: User):
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = {
-        "sub": user.username,
-        "user_id": user.id,  # Dodaj user_id
-        "exp": expire
-    }
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE)
+    to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Nie można zweryfikować poświadczeń",
+        detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -53,18 +41,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-
-    # Użyj metody first() zamiast bezpośredniego filtrowania
-    user = db.query(User).filter(User.username == username).first()
-    if user is None:
+    user = db.query(User).filter_by(username=username).first()
+    if username is None:
         raise credentials_exception
-
-    # Sprawdź, czy konto jest aktywne
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Konto użytkownika jest nieaktywne",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
     return user

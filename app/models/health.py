@@ -1,6 +1,3 @@
-from typing import List, Dict, Any
-
-from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from database.db_setup import Base
@@ -36,22 +33,3 @@ class Activity(Base):
     calories = Column(Integer, nullable=False)
 
     user = relationship('User', back_populates='activity')
-
-class StepData(BaseModel):
-    steps: int
-
-class DashboardResponse(BaseModel):
-    steps: List[Dict[str, Any]]
-    sleep: List[Dict[str, Any]]
-    heart_rate: List[Dict[str, Any]]
-    metrics: Dict[str, float]
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "steps": [{"date": "2023-01-01", "steps": 8500}],
-                "sleep": [{"date": "2023-01-01", "duration": 7.5}],
-                "heart_rate": [{"timestamp": "2023-01-01T08:00:00", "bpm": 72}],
-                "metrics": {"avg_steps": 7850, "avg_sleep": 7.2}
-            }
-        }
