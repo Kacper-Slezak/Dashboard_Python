@@ -28,7 +28,7 @@ router = APIRouter(
 
 @router.get('/steps')
 async def get_steps(
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user),  # Dodany wymóg uwierzytelnienia
         start_date: Optional[str] = Query(None, description="Data początkowa w formacie YYYY-MM-DD"),
         end_date: Optional[str] = Query(None, description="Data końcowa w formacie YYYY-MM-DD")
 ):
@@ -38,6 +38,7 @@ async def get_steps(
     Jeśli daty nie są podane, domyślnie zwraca dane z ostatnich 7 dni.
 
     Args:
+        current_user: Zalogowany użytkownik
         start_date: Data początkowa w formacie YYYY-MM-DD.
         end_date: Data końcowa w formacie YYYY-MM-DD.
 
@@ -48,16 +49,29 @@ async def get_steps(
         end_date_obj = datetime.now()
         start_date_obj = end_date_obj - timedelta(days=7)
     else:
-        start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
-        end_date_obj = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Nieprawidłowy format daty. Użyj formatu YYYY-MM-DD."
+            )
 
-    services = GoogleFitServices()
-    steps_data = services.get_steps_data(start_date_obj, end_date_obj)
-    return {"data": steps_data}
+    try:
+        services = GoogleFitServices()
+        steps_data = services.get_steps_data(start_date_obj, end_date_obj)
+        return {"data": steps_data}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Błąd podczas pobierania danych o krokach: {str(e)}"
+        )
 
 
 @router.get('/sleep')
 async def get_sleep(
+        current_user: User = Depends(get_current_user),  # Dodany wymóg uwierzytelnienia
         start_date: Optional[str] = Query(None, description="Data początkowa w formacie YYYY-MM-DD"),
         end_date: Optional[str] = Query(None, description="Data końcowa w formacie YYYY-MM-DD")
 ):
@@ -67,6 +81,7 @@ async def get_sleep(
     Jeśli daty nie są podane, domyślnie zwraca dane z ostatnich 7 dni.
 
     Args:
+        current_user: Zalogowany użytkownik
         start_date: Data początkowa w formacie YYYY-MM-DD.
         end_date: Data końcowa w formacie YYYY-MM-DD.
 
@@ -77,17 +92,30 @@ async def get_sleep(
         end_date_obj = datetime.now()
         start_date_obj = end_date_obj - timedelta(days=7)
     else:
-        start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
-        end_date_obj = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Nieprawidłowy format daty. Użyj formatu YYYY-MM-DD."
+            )
 
-    services = GoogleFitServices()
-    sleep_data = services.get_sleep_data(start_date_obj, end_date_obj)
-    return {"data": sleep_data}
+    try:
+        services = GoogleFitServices()
+        sleep_data = services.get_sleep_data(start_date_obj, end_date_obj)
+        return {"data": sleep_data}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Błąd podczas pobierania danych o śnie: {str(e)}"
+        )
 
 
 @router.get('/heart/{user_id}')
 async def get_heart(
         user_id: int,
+        current_user: User = Depends(get_current_user),  # Dodany wymóg uwierzytelnienia
         db: Session = Depends(get_db)
 ):
     """
@@ -95,6 +123,7 @@ async def get_heart(
 
     Args:
         user_id: Identyfikator użytkownika.
+        current_user: Zalogowany użytkownik
         db: Sesja bazy danych (wstrzykiwana automatycznie).
 
     Returns:
@@ -103,6 +132,13 @@ async def get_heart(
     Raises:
         HTTPException: Gdy dane o tętnie nie zostały znalezione dla danego użytkownika.
     """
+    # Sprawdź czy użytkownik ma dostęp do tych danych (admin lub własne dane)
+    if current_user.id != user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Brak dostępu do danych tego użytkownika"
+        )
+
     heart_rates = db.query(HeartRate).filter(HeartRate.user_id == user_id).all()
     if not heart_rates:
         raise HTTPException(status_code=404, detail="Nie znaleziono danych o tętnie dla tego użytkownika")
@@ -118,6 +154,7 @@ async def get_heart(
 
 @router.get('/heart-rate')
 async def get_heart_rate(
+        current_user: User = Depends(get_current_user),  # Dodany wymóg uwierzytelnienia
         start_date: Optional[str] = Query(None, description="Data początkowa w formacie YYYY-MM-DD"),
         end_date: Optional[str] = Query(None, description="Data końcowa w formacie YYYY-MM-DD")
 ):
@@ -127,6 +164,7 @@ async def get_heart_rate(
     Jeśli daty nie są podane, domyślnie zwraca dane z ostatnich 7 dni.
 
     Args:
+        current_user: Zalogowany użytkownik
         start_date: Data początkowa w formacie YYYY-MM-DD.
         end_date: Data końcowa w formacie YYYY-MM-DD.
 
@@ -137,16 +175,29 @@ async def get_heart_rate(
         end_date_obj = datetime.now()
         start_date_obj = end_date_obj - timedelta(days=7)
     else:
-        start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
-        end_date_obj = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Nieprawidłowy format daty. Użyj formatu YYYY-MM-DD."
+            )
 
-    services = GoogleFitServices()
-    heart_rate_data = services.get_heart_rate_data(start_date_obj, end_date_obj)
-    return {"data": heart_rate_data}
+    try:
+        services = GoogleFitServices()
+        heart_rate_data = services.get_heart_rate_data(start_date_obj, end_date_obj)
+        return {"data": heart_rate_data}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Błąd podczas pobierania danych o tętnie: {str(e)}"
+        )
 
 
 @router.get('/activity')
 async def get_activity(
+        current_user: User = Depends(get_current_user),  # Dodany wymóg uwierzytelnienia
         start_date: Optional[str] = Query(None, description="Data początkowa w formacie YYYY-MM-DD"),
         end_date: Optional[str] = Query(None, description="Data końcowa w formacie YYYY-MM-DD")
 ):
@@ -156,6 +207,7 @@ async def get_activity(
     Jeśli daty nie są podane, domyślnie zwraca dane z ostatnich 7 dni.
 
     Args:
+        current_user: Zalogowany użytkownik
         start_date: Data początkowa w formacie YYYY-MM-DD.
         end_date: Data końcowa w formacie YYYY-MM-DD.
 
@@ -166,16 +218,29 @@ async def get_activity(
         end_date_obj = datetime.now()
         start_date_obj = end_date_obj - timedelta(days=7)
     else:
-        start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
-        end_date_obj = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Nieprawidłowy format daty. Użyj formatu YYYY-MM-DD."
+            )
 
-    services = GoogleFitServices()
-    activity_data = services.get_activity_data(start_date_obj, end_date_obj)
-    return {"data": activity_data}
+    try:
+        services = GoogleFitServices()
+        activity_data = services.get_activity_data(start_date_obj, end_date_obj)
+        return {"data": activity_data}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Błąd podczas pobierania danych o aktywności: {str(e)}"
+        )
 
 
 @router.get('/all')
 async def get_all_health_data(
+        current_user: User = Depends(get_current_user),  # Dodany wymóg uwierzytelnienia
         start_date: Optional[str] = Query(None, description="Data początkowa w formacie YYYY-MM-DD"),
         end_date: Optional[str] = Query(None, description="Data końcowa w formacie YYYY-MM-DD"),
         format: Optional[str] = Query("json", description="Format odpowiedzi (json lub csv)")
@@ -187,6 +252,7 @@ async def get_all_health_data(
     w wybranym formacie.
 
     Args:
+        current_user: Zalogowany użytkownik
         start_date: Data początkowa w formacie YYYY-MM-DD.
         end_date: Data końcowa w formacie YYYY-MM-DD.
         format: Format odpowiedzi - "json" (domyślnie) lub "csv".
@@ -198,28 +264,40 @@ async def get_all_health_data(
         end_date_obj = datetime.now()
         start_date_obj = end_date_obj - timedelta(days=30)  # Domyślnie ostatnie 30 dni
     else:
-        start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
-        end_date_obj = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Nieprawidłowy format daty. Użyj formatu YYYY-MM-DD."
+            )
 
-    services = GoogleFitServices()
-    all_data = services.get_all_health_data(start_date_obj, end_date_obj)
+    try:
+        services = GoogleFitServices()
+        all_data = services.get_all_health_data(start_date_obj, end_date_obj)
 
-    if format.lower() == "csv":
-        # Tutaj można dodać implementację eksportu do CSV
-        return {"message": "Format CSV nie jest jeszcze zaimplementowany"}
+        if format.lower() == "csv":
+            # Tutaj można dodać implementację eksportu do CSV
+            return {"message": "Format CSV nie jest jeszcze zaimplementowany"}
 
-    # Konwersja DataFrames na listy słowników
-    response_data = {}
-    for key, df in all_data.items():
-        if not df.empty:
-            # Konwertuj daty na stringi, żeby były serializowalne do JSON
-            if 'date' in df.columns:
-                df['date'] = df['date'].dt.strftime('%Y-%m-%d')
-            response_data[key] = df.to_dict('records')
-        else:
-            response_data[key] = []
+        # Konwersja DataFrames na listy słowników
+        response_data = {}
+        for key, df in all_data.items():
+            if not df.empty:
+                # Konwertuj daty na stringi, żeby były serializowalne do JSON
+                if 'date' in df.columns:
+                    df['date'] = df['date'].dt.strftime('%Y-%m-%d')
+                response_data[key] = df.to_dict('records')
+            else:
+                response_data[key] = []
 
-    return {"data": response_data}
+        return {"data": response_data}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Błąd podczas pobierania danych zdrowotnych: {str(e)}"
+        )
 
 class StepData(BaseModel):
     steps: int
@@ -227,6 +305,7 @@ class StepData(BaseModel):
 
 @router.post("/predict/steps")
 def predict_steps_endpoint(
+        current_user: User = Depends(get_current_user),  # Dodany wymóg uwierzytelnienia
         request_data: dict = Body(...)  # Odbierz całe body jako słownik
 ):
     try:

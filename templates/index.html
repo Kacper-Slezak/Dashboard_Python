@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Finanse Zdrowie</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Welcome to Dashboard Finanse Zdrowie</h1>
+        <nav>
+            <ul>
+                <li><a href="/health">Health Dashboard</a></li>
+                <li><a href="/login">Login</a></li>
+                <li><a href="/register">Register</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="intro">
+            <h2>Track Your Health and Finances in One Place</h2>
+            <p>Our dashboard helps you monitor both your financial well-being and health metrics to achieve a balanced lifestyle.</p>
+
+            <div class="cta-buttons">
+                <a href="/login" class="button primary">Login</a>
+                <a href="/register" class="button secondary">Create Account</a>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Dashboard Finanse Zdrowie</p>
+    </footer>
+</body>
+</html>

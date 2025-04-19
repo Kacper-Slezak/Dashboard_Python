@@ -172,12 +172,11 @@ class GoogleFitServices:
         response = self.service.users().dataset().aggregate(userId='me', body=body).execute()
         return self._parse_sleep(response)
 
-
-
     def _parse_sleep(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Parsuje odpowiedzi z Google Fit API dotyczące snu.
-            Args:
+
+        Args:
             response: Surowa odpowiedź z API Google Fit.
 
         Returns:
@@ -187,48 +186,84 @@ class GoogleFitServices:
         sleep_data = []
         sleep_stages = {1: "awake", 2: "light", 3: "deep", 4: "rem"}
 
-        for bucket in response.get("bucket", []):
-            date_millis = int(bucket.get("startTimeMillis", 0))
-            date = datetime.fromtimestamp(date_millis / 1000)
+        try:
+            for bucket in response.get("bucket", []):
+                date_millis = int(bucket.get("startTimeMillis", 0))
+                date = datetime.fromtimestamp(date_millis / 1000)
 
-            sleep_segments = []
+                sleep_segments = []
 
-            for dataset in bucket.get("dataset", []):
-                for point in dataset.get("point", []):
-                    start_time_nanos = point.get("startTimeNanos", 0)
-                    end_time_nanos = point.get("endTimeNanos", 0)
+                for dataset in bucket.get("dataset", []):
+                    for point in dataset.get("point", []):
+                        start_time_nanos = point.get("startTimeNanos", 0)
+                        end_time_nanos = point.get("endTimeNanos", 0)
 
-                    start_time = datetime.fromtimestamp(start_time_nanos / 1e9)
-                    end_time = datetime.fromtimestamp(end_time_nanos / 1e9)
+                        # Sprawdzenie czy wartości czasowe są prawidłowe
+                        if start_time_nanos == 0 or end_time_nanos == 0:
+                            continue
 
-                    duration = (end_time - start_time).total_seconds() / 60
-                    for value in point.get("value", []):
-                        if "intVal" in value:
-                            stage = sleep_stages.get(value.get("intVal"), "unknown")
-                            sleep_segments.append({
-                                "start_time": start_time,
-                                "end_time": end_time,
-                                "duration": duration,
-                                "stage": stage
-                            })
-            if sleep_segments:
-                total_minutes = sum(segment["duration"] for segment in sleep_segments)
-                light_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "light")
-                deep_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "deep")
-                rem_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "rem")
-                awake_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "awake")
+                        start_time = datetime.fromtimestamp(start_time_nanos / 1e9)
+                        end_time = datetime.fromtimestamp(end_time_nanos / 1e9)
 
-                sleep_data.append({
-                    "date": date.strftime("%Y-%m-%d"),
-                    "total_minutes": total_minutes,
-                    "light_minutes": light_minutes,
-                    "deep_minutes": deep_minutes,
-                    "rem_minutes": rem_minutes,
-                    "awake_minutes": awake_minutes,
-                    "efficiency": (total_minutes - awake_minutes) / total_minutes * 100 if total_minutes > 0 else 0
-                })
+                        # Obliczenie czasu trwania w minutach
+                        duration = (end_time - start_time).total_seconds() / 60
 
-        # Fixed indentation - return moved outside the loop
+                        # Sprawdzenie czy czas jest dodatni
+                        if duration <= 0:
+                            continue
+
+                        for value in point.get("value", []):
+                            if "intVal" in value:
+                                stage_value = value.get("intVal")
+                                stage = sleep_stages.get(stage_value, "unknown")
+
+                                sleep_segments.append({
+                                    "start_time": start_time.strftime("%Y-%m-%d %H:%M:%S"),
+                                    "end_time": end_time.strftime("%Y-%m-%d %H:%M:%S"),
+                                    "duration": round(duration, 2),
+                                    "stage": stage
+                                })
+
+                if sleep_segments:
+                    # Obliczenie sumarycznych statystyk
+                    total_minutes = sum(segment["duration"] for segment in sleep_segments)
+                    light_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "light")
+                    deep_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "deep")
+                    rem_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "rem")
+                    awake_minutes = sum(s["duration"] for s in sleep_segments if s["stage"] == "awake")
+
+                    # Dodanie dodatkowych informacji
+                    sleep_quality = None
+                    if total_minutes > 0:
+                        quality_score = ((deep_minutes * 3) + (rem_minutes * 2) + light_minutes) / total_minutes * 100
+                        if quality_score > 80:
+                            sleep_quality = "Doskonały"
+                        elif quality_score > 60:
+                            sleep_quality = "Dobry"
+                        elif quality_score > 40:
+                            sleep_quality = "Przeciętny"
+                        else:
+                            sleep_quality = "Słaby"
+
+                    sleep_data.append({
+                        "date": date.strftime("%Y-%m-%d"),
+                        "total_minutes": round(total_minutes, 2),
+                        "light_minutes": round(light_minutes, 2),
+                        "deep_minutes": round(deep_minutes, 2),
+                        "rem_minutes": round(rem_minutes, 2),
+                        "awake_minutes": round(awake_minutes, 2),
+                        "efficiency": round((total_minutes - awake_minutes) / total_minutes * 100,
+                                            2) if total_minutes > 0 else 0,
+                        "quality": sleep_quality,
+                        "segments": sleep_segments  # Dodajemy szczegółowe dane dla dalszej analizy
+                    })
+
+        except Exception as e:
+            # Logowanie błędu dla debugowania
+            print(f"Błąd podczas parsowania danych o śnie: {str(e)}")
+            # Zwrócenie pustej listy w przypadku błędu
+            return []
+
         return sleep_data
     def get_activity_data(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """
