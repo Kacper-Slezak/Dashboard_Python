@@ -111,7 +111,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         )
 
     # Generowanie tokenu JWT
-    access_token = create_access_token({"sub": user.username})
+    access_token = create_access_token(user)
 
     return {
         "access_token": access_token,

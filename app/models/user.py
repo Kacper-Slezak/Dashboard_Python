@@ -21,3 +21,5 @@ class User(Base):
     heart_rates = relationship('HeartRate', back_populates='user')
     sleep = relationship('Sleep', back_populates='user')
     activity = relationship('Activity', back_populates='user')
+
+

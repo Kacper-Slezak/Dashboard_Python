@@ -30,15 +30,16 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-def create_access_token(data: dict):
-    to_encode = data.copy()
-    # Poprawne ustawienie czasu wygaśnięcia
+# services/auth.py
+
+def create_access_token(user: User):
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-
+    to_encode = {
+        "sub": user.username,
+        "user_id": user.id,  # Dodaj user_id
+        "exp": expire
+    }
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

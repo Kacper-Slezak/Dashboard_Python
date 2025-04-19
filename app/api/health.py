@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.services.health import GoogleFitServices
-from app.models.health import HeartRate, Sleep, Activity
+from app.models.health import HeartRate, Sleep, Activity, DashboardResponse, StepData
 from database.db_setup import get_db
 from app.services.auth import get_current_user
 from app.models.user import User
@@ -329,3 +329,57 @@ def predict_steps_endpoint(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Błąd serwera: {str(e)}")
+
+
+
+
+@router.get('/dashboard', response_model=Dict[str, Any])
+async def get_health_dashboard(
+        current_user: User = Depends(get_current_user),
+        days: int = Query(7, description="Liczba dni do analizy"),
+        db: Session = Depends(get_db)
+):
+    """
+    Pobiera zestaw danych dla dashboardu zdrowotnego
+    """
+    try:
+        # Pobierz dane z różnych źródeł
+        services = GoogleFitServices()
+
+        # Dane o krokach
+        steps_data = services.get_steps_data(
+            start_date=datetime.now() - timedelta(days=days),
+            end_date=datetime.now()
+        )
+
+        # Dane o śnie
+        sleep_data = services.get_sleep_data(
+            start_date=datetime.now() - timedelta(days=days),
+            end_date=datetime.now()
+        )
+
+        # Dane o tętnie z bazy
+        heart_data = db.query(HeartRate).filter(
+            HeartRate.user_id == current_user.id,
+            HeartRate.timestamp >= datetime.now() - timedelta(days=days)
+        ).all()
+
+        # Przetwórz dane do formatu dashboardu
+        return {
+            "steps": steps_data,
+            "sleep": sleep_data,
+            "heart_rate": [
+                {"timestamp": hr.timestamp.isoformat(), "bpm": hr.bpm_value}
+                for hr in heart_data
+            ],
+            "metrics": {
+                "avg_steps": sum(item['steps'] for item in steps_data) / len(steps_data),
+                "avg_sleep": sum(item['duration'] for item in sleep_data) / len(sleep_data)
+            }
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Błąd podczas generowania dashboardu: {str(e)}"
+        )

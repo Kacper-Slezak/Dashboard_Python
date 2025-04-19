@@ -1,8 +1,7 @@
 import os
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
-from google.auth.exceptions import RefreshError
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import Flow
 
 SCOPES = [
     "https://www.googleapis.com/auth/fitness.activity.read",
@@ -16,7 +15,18 @@ SCOPES = [
 def google_fit_credentials():
     try:
         creds = None
-        token_path = "config/token.json"
+        token_path = os.getenv('TOKEN_PATH', 'config/token.json')
+
+        # POPRAWKA: Użyj typu "web" zamiast "installed"
+        client_config = {
+            "web": {  # Zmiana z "installed" na "web"
+                "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+                "redirect_uris": [os.getenv("GOOGLE_REDIRECT_URI")],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token"
+            }
+        }
 
         if os.path.exists(token_path):
             creds = Credentials.from_authorized_user_file(token_path, SCOPES)
@@ -25,21 +35,31 @@ def google_fit_credentials():
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                # Poprawiona nazwa pliku - bez podkreślnika na końcu
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    "config/client_secret.json",
-                    SCOPES
+                # POPRAWKA: Jawnie podaj redirect_uri
+                flow = Flow.from_client_config(
+                    client_config,
+                    SCOPES,
+                    redirect_uri=os.getenv("GOOGLE_REDIRECT_URI")  # Wymagane dla typu "web"
                 )
-                creds = flow.run_local_server(port=0)
+
+                # Uruchom serwer z potwierdzeniem portu
+                authorization_url, _ = flow.authorization_url(
+                    prompt='consent',
+                    access_type='offline'
+                )
+                print(f"Przejdź do tego adresu: {authorization_url}")  # For debugging
+
+                creds = flow.run_local_server(
+                    port=8000,  # Jawnie ustaw port 8000
+                    host="localhost",
+                    open_browser=False
+                )
 
             with open(token_path, "w") as token:
                 token.write(creds.to_json())
 
         return creds
 
-    except RefreshError as e:
-        print(f"Błąd odświeżania tokenu: {str(e)}")
-        raise
     except Exception as e:
-        print(f"Błąd: {str(e)}")
+        print(f"Błąd autoryzacji: {str(e)}")
         raise

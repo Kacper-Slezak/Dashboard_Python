@@ -14,6 +14,10 @@ from database.db_setup import SessionLocal
 from config.google_auth import google_fit_credentials
 
 
+class AccessTokenCredentials:
+    pass
+
+
 class GoogleFitServices:
     """
     Klasa odpowiedzialna za pobieranie danych zdrowotnych z Google Fit API.
@@ -22,10 +26,12 @@ class GoogleFitServices:
     kategorii danych zdrowotnych, takich jak kroki, sen, tętno i aktywność.
     """
 
-    def __init__(self):
-        """
-        Inicjalizuje serwis Google Fit z odpowiednimi uprawnieniami.
-        """
+    def __init__(self, access_token: str):
+        self.credentials = AccessTokenCredentials(
+            access_token,
+            "my-app-name/1.0"
+        )
+        self.service = build('fitness', 'v1', credentials=self.credentials)
         self.google_fit_credentials = google_fit_credentials()
         self.service = build('fitness', 'v1', credentials=self.google_fit_credentials)
 

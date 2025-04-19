@@ -1,7 +1,10 @@
 # app/api/api_connections.py
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Body, Query
+from google_auth_oauthlib.flow import Flow
 from sqlalchemy.orm import Session, relationship
+from starlette.responses import RedirectResponse
+
 from app.services.auth import get_current_user
 from app.models.user import User
 from database.db_setup import get_db
@@ -9,11 +12,29 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import os
 from datetime import datetime, timedelta
-import secrets
+from dotenv import load_dotenv
+import logging
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON
 from database.db_setup import Base
 import requests
 
+load_dotenv()
+
+
+# Konfiguruj logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Utwórz handler dla konsoli
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# Format logów
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+
+# Dodaj handler do logera
+logger.addHandler(console_handler)
 
 # Definicje modeli dla połączeń API
 class ApiConnection(Base):
@@ -144,164 +165,131 @@ async def delete_api_connection(
     return None
 
 
-# Funkcja do inicjalizacji połączenia z Google Fit
 @router.post("/google-fit/auth", response_model=Dict[str, Any])
 async def initialize_google_fit_auth(
-        request: Request,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
-    """
-    Inicjalizuje proces autoryzacji z Google Fit.
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
 
-    Generuje URL, na który użytkownik musi przejść, aby zalogować się do Google
-    i udzielić zgody na dostęp do danych z Google Fit.
-    """
-    # Generowanie stanu dla zabezpieczenia CSRF
-    state = secrets.token_urlsafe(16)
+        redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+        if not redirect_uri:
+            raise HTTPException(500, detail="Brak konfiguracji GOOGLE_REDIRECT_URI")
 
-    # Zapisz stan w bazie danych dla późniejszej weryfikacji
-    connection_data = {"auth_state": state}
+        # POPRAWIONE: Zamknięcie nawiasów dla Flow.from_client_config
+        flow = Flow.from_client_config(
+            client_config={
+                "web": {
+                    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token"
+                }
+            },
+            scopes=[
+                "https://www.googleapis.com/auth/fitness.activity.read",
+                "https://www.googleapis.com/auth/fitness.sleep.read",
+                "https://www.googleapis.com/auth/fitness.heart_rate.read"
+            ],
+            redirect_uri=redirect_uri  # Tutaj zamykamy nawias
+        )  # <--- BRAKUJĄCY NAWIAS
 
-    # Sprawdź, czy istnieje już połączenie z Google Fit dla tego użytkownika
-    existing_connection = db.query(ApiConnection).filter(
-        ApiConnection.user_id == current_user.id,
-        ApiConnection.provider == "google_fit"
-    ).first()
-
-    if existing_connection:
-        # Aktualizacja istniejącego połączenia
-        existing_connection.connection_data = connection_data
-        existing_connection.updated_at = datetime.now()
-        db.commit()
-    else:
-        # Utworzenie nowego połączenia (jeszcze bez tokenów)
-        new_connection = ApiConnection(
-            user_id=current_user.id,
-            provider="google_fit",
-            connection_data=connection_data
-        )
-        db.add(new_connection)
-        db.commit()
-
-    # Adres zwrotny, na który Google przekieruje użytkownika po autoryzacji
-    # Powinien być skonfigurowany w Google Cloud Console
-    redirect_uri = request.url_for("google_fit_callback")
-
-    # Zakres uprawnień dla Google Fit
-    scopes = [
-        "https://www.googleapis.com/auth/fitness.activity.read",
-        "https://www.googleapis.com/auth/fitness.sleep.read",
-        "https://www.googleapis.com/auth/fitness.heart_rate.read",
-        "https://www.googleapis.com/auth/fitness.body.read",
-        "https://www.googleapis.com/auth/fitness.location.read"
-    ]
-
-    # Sprawdzenie czy GOOGLE_CLIENT_ID jest dostępny
-    client_id = os.getenv('GOOGLE_CLIENT_ID')
-    if not client_id:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Brak konfiguracji GOOGLE_CLIENT_ID. Skontaktuj się z administratorem."
+        # POPRAWIONE: Użyj zmiennej 'state' z authorization_url
+        authorization_url, state = flow.authorization_url(
+            access_type="offline",
+            prompt="consent",
+            include_granted_scopes="true"
         )
 
-    # URL autoryzacji Google
-    auth_url = f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope={'%20'.join(scopes)}&state={state}&access_type=offline&prompt=consent"
+        # ZAPIS STANU: Użyj 'state' z powyższego wywołania
+        existing_connection = db.query(ApiConnection).filter(
+            ApiConnection.user_id == current_user.id,
+            ApiConnection.provider == "google_fit"
+        ).first()
 
-    return {
-        "auth_url": auth_url,
-        "state": state,
-        "message": "Przejdź na podany URL, aby zalogować się do Google Fit"
-    }
+        connection_data = {
+            "auth_state": state,  # Używamy 'state' z authorization_url
+            "redirect_uri": redirect_uri
+        }
+
+        if existing_connection:
+            existing_connection.connection_data = connection_data
+            existing_connection.updated_at = datetime.now()
+        else:
+            new_connection = ApiConnection(
+                user_id=current_user.id,
+                provider="google_fit",
+                connection_data=connection_data
+            )
+            db.add(new_connection)
+        db.commit()
+
+        return {"auth_url": authorization_url}
+
+    except Exception as e:
+        logger.error(f"Auth error: {str(e)}", exc_info=True)
+        raise HTTPException(500, detail=f"Błąd inicjalizacji: {str(e)}")
 
 
-@router.get("/google-fit/callback")
+@router.get("/google-fit/callback", name="google_fit_callback")
 async def google_fit_callback(
-        code: str,
-        state: str,
+        code: str = Query(...),
+        state: str = Query(...),
         db: Session = Depends(get_db)
 ):
-    """
-    Obsługuje callback od Google po autoryzacji.
-
-    Wymienia kod autoryzacyjny na tokeny dostępu i odświeżania.
-    """
-    # Znajdź połączenie z tym stanem dla weryfikacji CSRF
-    connection = db.query(ApiConnection).filter(
-        ApiConnection.provider == "google_fit",
-        ApiConnection.connection_data.contains({"auth_state": state})
-    ).first()
-
-    if not connection:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nieprawidłowy stan autoryzacji. Spróbuj ponownie."
-        )
-
-    # Adres API Google do wymiany kodu
-    token_url = "https://oauth2.googleapis.com/token"
-
-    # Odbierz CLIENT_ID i CLIENT_SECRET z zmiennych środowiskowych
-    client_id = os.getenv('GOOGLE_CLIENT_ID')
-    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
-
-    if not client_id or not client_secret:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Brak konfiguracji uwierzytelniania Google. Skontaktuj się z administratorem."
-        )
-
-    # Pełny URL do callbacku
-    redirect_uri = f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/api/api-connections/google-fit/callback"
-
-    # Parametry żądania wymiany kodu na tokeny
-    token_params = {
-        "code": code,
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
-        "grant_type": "authorization_code"
-    }
-
     try:
-        # Wykonanie żądania HTTP do Google API
-        response = requests.post(token_url, data=token_params)
-        response.raise_for_status()  # Sprawdzenie czy nie ma błędu HTTP
+        # Poprawione zapytanie dla SQLite z użyciem json_extract
+        from sqlalchemy import func
 
-        token_data = response.json()
+        connection = db.query(ApiConnection).filter(
+            func.json_extract(ApiConnection.connection_data, '$.auth_state') == state
+        ).first()
 
-        # Pobierz tokeny z odpowiedzi
-        access_token = token_data.get("access_token")
-        refresh_token = token_data.get("refresh_token")
-        expires_in = token_data.get("expires_in", 3600)
+        if not connection:
+            logger.error(f"Nie znaleziono połączenia dla stanu: {state}")
+            return RedirectResponse(url="/connections?error=invalid_state")
 
-        if not access_token:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Nie udało się uzyskać tokenu dostępu od Google"
-            )
+        # Weryfikacja konfiguracji
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+        redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
 
-        # Oblicz datę wygaśnięcia tokenu
-        token_expires_at = datetime.now() + timedelta(seconds=expires_in) if expires_in else None
+        if not all([client_id, client_secret, redirect_uri]):
+            logger.critical("Brakujące zmienne środowiskowe Google")
+            return RedirectResponse(url="/connections?error=config_error")
 
-        # Aktualizuj połączenie w bazie danych
-        connection.access_token = access_token
-        connection.refresh_token = refresh_token
-        connection.token_expires_at = token_expires_at
+        # Wymiana kodu na token
+        token_data = {
+            "code": code,
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code"
+        }
+
+        response = requests.post("https://oauth2.googleapis.com/token", data=token_data)
+
+        if response.status_code != 200:
+            logger.error(f"Google API error: {response.status_code} - {response.text}")
+            return RedirectResponse(url="/connections?error=google_api_failure")
+
+        token_json = response.json()
+
+        # Aktualizacja danych połączenia
+        connection.tokens = {
+            "access_token": token_json.get("access_token"),
+            "refresh_token": token_json.get("refresh_token"),
+            "expires_at": datetime.now() + timedelta(seconds=token_json.get("expires_in", 3600))
+        }
         connection.is_active = True
         connection.updated_at = datetime.now()
 
         db.commit()
 
-        return {"message": "Połączenie z Google Fit zostało ustanowione pomyślnie!", "success": True}
+        return RedirectResponse(url="/connections?success=google_fit_connected")
 
-    except requests.RequestException as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Błąd podczas komunikacji z Google API: {str(e)}"
-        )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Wystąpił nieoczekiwany błąd: {str(e)}"
-        )
+        logger.error(f"Critical callback error: {str(e)}", exc_info=True)
+        return RedirectResponse(url="/connections?error=internal_error")
