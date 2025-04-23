@@ -11,7 +11,6 @@ from app.api.auth import router as auth_router
 from app.services.auth import get_current_user
 import os
 
-
 # Create directories if they don't exist
 os.makedirs("templates", exist_ok=True)
 os.makedirs("static", exist_ok=True)
@@ -30,10 +29,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Initialize templates
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
-# Add routers
-app.include_router(health_router, prefix="/api", tags=["health"])
+# Add routers - TUTAJ NAJWAŻNIEJSZA ZMIANA
+app.include_router(health_router, prefix="/api/health", tags=["health"])  # Zmieniony prefix
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
-app.include_router(api_connections_router, prefix="/api", tags=["api_connections"])
+app.include_router(api_connections_router, prefix="/api/connections", tags=["api_connections"])  # Zmieniony prefix
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -63,6 +62,12 @@ async def show_dashboard(request: Request):
     """
     return templates.TemplateResponse("health_dashboard.html", {"request": request})
 
+@app.get("/connections", response_class=HTMLResponse)
+async def connections_page(request: Request):
+    """
+    Display API connections management page
+    """
+    return templates.TemplateResponse("connections.html", {"request": request})
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta
-
+import dotenv
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -8,6 +8,8 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.user import User
 from database.db_setup import get_db
+
+dotenv.load_dotenv()
 
 # Poprawne odczytanie zmiennych środowiskowych z wartościami domyślnymi
 SECRET_KEY = os.getenv('SECRET_KEY', 'tajny_klucz_zamienic_w_produkcji')

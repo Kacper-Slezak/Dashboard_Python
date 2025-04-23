@@ -2,18 +2,22 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
 from sqlalchemy.orm import Session, relationship
+from starlette.responses import RedirectResponse
+
 from app.services.auth import get_current_user
 from app.models.user import User
 from database.db_setup import get_db
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import os
+import dotenv
 from datetime import datetime, timedelta
 import secrets
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON
 from database.db_setup import Base
 import requests
 
+dotenv.load_dotenv()
 
 # Definicje modeli dla połączeń API
 class ApiConnection(Base):
@@ -144,7 +148,8 @@ async def delete_api_connection(
     return None
 
 
-# Funkcja do inicjalizacji połączenia z Google Fit
+# Fix the initialize_google_fit_auth function in api_connections.py
+
 @router.post("/google-fit/auth", response_model=Dict[str, Any])
 async def initialize_google_fit_auth(
         request: Request,
@@ -185,8 +190,9 @@ async def initialize_google_fit_auth(
         db.commit()
 
     # Adres zwrotny, na który Google przekieruje użytkownika po autoryzacji
-    # Powinien być skonfigurowany w Google Cloud Console
-    redirect_uri = request.url_for("google_fit_callback")
+    # Construct the redirect URI manually instead of using url_for
+    base_url = os.getenv('APP_BASE_URL', 'http://localhost:8000')
+    redirect_uri = f"{base_url}/api/api-connections/google-fit/callback"
 
     # Zakres uprawnień dla Google Fit
     scopes = [
@@ -214,8 +220,9 @@ async def initialize_google_fit_auth(
         "message": "Przejdź na podany URL, aby zalogować się do Google Fit"
     }
 
+# Update the callback route in api_connections.py to include a name
 
-@router.get("/google-fit/callback")
+@router.get("/google-fit/callback", name="google_fit_callback")
 async def google_fit_callback(
         code: str,
         state: str,
@@ -233,10 +240,7 @@ async def google_fit_callback(
     ).first()
 
     if not connection:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nieprawidłowy stan autoryzacji. Spróbuj ponownie."
-        )
+        return RedirectResponse(url="/connections?auth_success=false")
 
     # Adres API Google do wymiany kodu
     token_url = "https://oauth2.googleapis.com/token"
@@ -246,13 +250,11 @@ async def google_fit_callback(
     client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
 
     if not client_id or not client_secret:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Brak konfiguracji uwierzytelniania Google. Skontaktuj się z administratorem."
-        )
+        return RedirectResponse(url="/connections?auth_success=false")
 
     # Pełny URL do callbacku
-    redirect_uri = f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/api/api-connections/google-fit/callback"
+    base_url = os.getenv('APP_BASE_URL', 'http://localhost:8000')
+    redirect_uri = f"{base_url}/api/api-connections/google-fit/callback"
 
     # Parametry żądania wymiany kodu na tokeny
     token_params = {
@@ -276,10 +278,7 @@ async def google_fit_callback(
         expires_in = token_data.get("expires_in", 3600)
 
         if not access_token:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Nie udało się uzyskać tokenu dostępu od Google"
-            )
+            return RedirectResponse(url="/connections?auth_success=false")
 
         # Oblicz datę wygaśnięcia tokenu
         token_expires_at = datetime.now() + timedelta(seconds=expires_in) if expires_in else None
@@ -293,15 +292,12 @@ async def google_fit_callback(
 
         db.commit()
 
-        return {"message": "Połączenie z Google Fit zostało ustanowione pomyślnie!", "success": True}
+        # Przekieruj użytkownika z powrotem do strony połączeń z informacją o sukcesie
+        return RedirectResponse(url="/connections?auth_success=true")
 
     except requests.RequestException as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Błąd podczas komunikacji z Google API: {str(e)}"
-        )
+        print(f"Google API error: {str(e)}")
+        return RedirectResponse(url="/connections?auth_success=false")
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Wystąpił nieoczekiwany błąd: {str(e)}"
-        )
+        print(f"Unexpected error: {str(e)}")
+        return RedirectResponse(url="/connections?auth_success=false")
