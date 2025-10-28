@@ -19,24 +19,6 @@ import requests
 
 dotenv.load_dotenv()
 
-# Definicje modeli dla połączeń API
-class ApiConnection(Base):
-    __tablename__ = 'api_connections'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-    provider = Column(String, nullable=False)  # np. 'google_fit', 'strava', itp.
-    user = relationship("User", back_populates="api_connections")
-    access_token = Column(String)
-    refresh_token = Column(String)
-    token_expires_at = Column(DateTime)
-    connection_data = Column(JSON, nullable=True)  # dodatkowe dane konfiguracyjne
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-
-    # Relacja z modelem User zostanie dodana później do modelu User
-
 
 # Schematy Pydantic
 class ApiConnectionCreate(BaseModel):
