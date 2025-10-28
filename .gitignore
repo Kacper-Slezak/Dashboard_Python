@@ -1,20 +1,18 @@
-.env
-config/token.json
+# Środowisko wirtualne
 .venv/
-database/test.db
-.idea/
-build/
-dist/
-*.spec
-*.exe
-__pycache__/
-# Build artifacts
-/dist/
-/build/
-/main.spec
-config/token_1.pickle
-# Sensitive files
+venv/
+
+# Sekrety i konfiguracja lokalna
+.env
+*.db
+*.sqlite3
+/config/credentials.json
 /config/token.json
-/static/js/dashboard.js
-/config/token_1.pickle
-/config/client_secret.json
+
+# Pliki IDE
+.idea/
+.vscode/
+
+# Cache Pythona
+__pycache__/
+*.pyc
