@@ -1,13 +1,20 @@
-# Środowisko wirtualne
+# .gitignore
+
+# Środowiska wirtualne
 .venv/
 venv/
+env/
 
 # Sekrety i konfiguracja lokalna
 .env
 *.db
 *.sqlite3
-/config/credentials.json
-/config/token.json
+
+# Pliki konfiguracyjne Google
+config/credentials.json
+config/token.json
+config/token_1.pickle
+config/client_secret.json
 
 # Pliki IDE
 .idea/
@@ -16,3 +23,15 @@ venv/
 # Cache Pythona
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Artefakty budowania
+build/
+dist/
+*.spec
+*.exe
+
+# Pliki systemowe
+.DS_Store
+Thumbs.db
