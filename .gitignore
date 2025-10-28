@@ -12,6 +12,9 @@ __pycache__/
 /dist/
 /build/
 /main.spec
-
+config/token_1.pickle
 # Sensitive files
 /config/token.json
+/static/js/dashboard.js
+/config/token_1.pickle
+/config/client_secret.json

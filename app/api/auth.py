@@ -1,4 +1,5 @@
 # app/api/auth.py - rozszerzona wersja
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
 from fastapi.security import OAuth2PasswordRequestForm
@@ -27,13 +28,18 @@ class UserResponse(BaseModel):
     is_active: bool
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TokenData(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
 
 
 @router.post("/register", response_model=UserResponse)
