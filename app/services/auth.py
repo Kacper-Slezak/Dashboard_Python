@@ -8,12 +8,15 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.user import User
 from database.db_setup import get_db
+from app.config import get_settings
+
+settings = get_settings()
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
 
 dotenv.load_dotenv()
 
-# Poprawne odczytanie zmiennych środowiskowych z wartościami domyślnymi
-SECRET_KEY = os.getenv('SECRET_KEY', 'tajny_klucz_zamienic_w_produkcji')
-ALGORITHM = os.getenv('ALGORITHM', 'HS256')
+
 # Konwersja na int z wartością domyślną w przypadku błędu
 try:
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '30'))
