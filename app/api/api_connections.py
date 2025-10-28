@@ -153,7 +153,7 @@ async def initialize_google_fit_auth(
 
     # Adres zwrotny, na który Google przekieruje użytkownika po autoryzacji
     # Construct the redirect URI manually instead of using url_for
-    base_url = os.getenv('APP_BASE_URL', 'http://localhost:8000')
+    base_url = os.getenv('APP_BASE_URL', 'http://localhost:8080')
     redirect_uri = f"{base_url}/api/api-connections/google-fit/callback"
 
     # Zakres uprawnień dla Google Fit
@@ -174,7 +174,13 @@ async def initialize_google_fit_auth(
         )
 
     # URL autoryzacji Google
+    ...
     auth_url = f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope={'%20'.join(scopes)}&state={state}&access_type=offline&prompt=consent"
+
+    # DODAJ TEN PRINT
+    print(f"DEBUG: URL Autoryzacji: {auth_url}")
+    print(f"DEBUG: Redirect URI (Init): {redirect_uri}")
+    
 
     return {
         "auth_url": auth_url,
@@ -198,7 +204,7 @@ async def google_fit_callback(
     # Znajdź połączenie z tym stanem dla weryfikacji CSRF
     connection = db.query(ApiConnection).filter(
         ApiConnection.provider == "google_fit",
-        ApiConnection.connection_data.contains({"auth_state": state})
+        ApiConnection.connection_data.op('->>')('auth_state') == state
     ).first()
 
     if not connection:
@@ -215,9 +221,13 @@ async def google_fit_callback(
         return RedirectResponse(url="/connections?auth_success=false")
 
     # Pełny URL do callbacku
-    base_url = os.getenv('APP_BASE_URL', 'http://localhost:8000')
+    base_url = os.getenv('APP_BASE_URL', 'http://localhost:8080')
     redirect_uri = f"{base_url}/api/api-connections/google-fit/callback"
 
+    # DODAJ TEN PRINT
+    print(f"DEBUG: Redirect URI (Callback): {redirect_uri}")
+    print(f"DEBUG: Otrzymany 'code': {code}")
+    print(f"DEBUG: Otrzymany 'state': {state}")
     # Parametry żądania wymiany kodu na tokeny
     token_params = {
         "code": code,

@@ -1,45 +1,16 @@
-# app/api/auth.py - rozszerzona wersja
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from app.services.auth import create_access_token, get_current_user, verify_password, get_password_hash
 from database.db_setup import get_db
 from sqlalchemy.orm import Session
-from app.models.user import User
-from pydantic import BaseModel, EmailStr
-from datetime import datetime
+from app.models.user import User, UserRegister, UserResponse, TokenData
+
 
 router = APIRouter(tags=["Auth"])
 
 
-class UserRegister(BaseModel):
-    username: str
-    email: EmailStr
-    password: str
-    confirm_password: str
-
-
-class UserResponse(BaseModel):
-    id: int
-    username: str
-    email: str
-    created_at: datetime
-    is_active: bool
-
-    class Config:
-        from_attributes = True
-
-
-class TokenData(BaseModel):
-    access_token: str
-    token_type: str
-    user: UserResponse
-
-class UserUpdate(BaseModel):
-    username: Optional[str] = None
-    email: Optional[EmailStr] = None
-    password: Optional[str] = None
 
 
 @router.post("/register", response_model=UserResponse)
@@ -118,6 +89,17 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         "token_type": "bearer",
         "user": user
     }
+
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+async def logout(current_user: User = Depends(get_current_user)):
+    """
+    Obsługuje żądanie wylogowania z frontendu.
+    W przypadku JWT, serwer nie musi nic robić, 
+    ponieważ klient (przeglądarka) usuwa token.
+    Można tu zaimplementować logikę blacklisty tokenów.
+    """
+    return {"message": "Logged out successfully"}
 
 
 @router.get("/me", response_model=UserResponse)

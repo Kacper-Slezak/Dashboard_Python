@@ -3,6 +3,8 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from database.db_setup import Base
 from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional
 
 
 class Transaction(Base):
@@ -15,3 +17,21 @@ class Transaction(Base):
 
     # Relationship
     user = relationship("User", back_populates="transactions")
+
+
+# Schemat Pydantic do walidacji danych wejściowych
+class TransactionCreate(BaseModel):
+    amount: float
+    description: Optional[str] = None
+    date: Optional[datetime] = None
+
+# Schemat Pydantic do odpowiedzi
+class TransactionResponse(BaseModel):
+    id: int
+    amount: float
+    description: Optional[str]
+    date: datetime
+    user_id: int
+
+    class Config:
+        from_attributes = True

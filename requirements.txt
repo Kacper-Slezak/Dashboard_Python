@@ -1,7 +1,7 @@
 # requirements.txt
 
 # Framework
-fastapi==@latest
+fastapi[all]
 uvicorn==0.24.0
 
 # Baza danych i Migracje
@@ -12,7 +12,8 @@ greenlet==3.2.4
 
 # Konfiguracja
 pydantic-settings
-
+email-validator
+python-multipart
 # Logika biznesowa i API
 requests==2.32.5
 numpy==1.26.4
@@ -23,7 +24,6 @@ passlib==1.7.4 # Brakowało tego, potrzebne do haszowania haseł
 python-jose==3.3.0 # Brakowało tego, potrzebne do JWT
 google-api-python-client==2.134.0
 google-auth-oauthlib==1.2.0
-
 # Obserwowalność (SRE)
 starlette-exporter
 

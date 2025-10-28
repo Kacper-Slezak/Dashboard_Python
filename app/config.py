@@ -11,8 +11,7 @@ class Settings(BaseSettings):
 
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET")
-    APP_URL: str = os.getenv("APP_URL", "http://localhost:8000")
-
+    APP_BASE_URL: str = os.getenv("APP_BASE_URL", "http://localhost:8002")
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

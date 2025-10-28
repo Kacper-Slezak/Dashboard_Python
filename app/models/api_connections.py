@@ -1,6 +1,7 @@
 # app/models/api_connection.py
 from typing import Any
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON, Optional, Dict
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON
+from typing import Optional, Dict, Any 
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database.db_setup import Base

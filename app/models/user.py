@@ -4,7 +4,10 @@ from sqlalchemy.orm import relationship
 from database.db_setup import Base
 from datetime import datetime
 # Import your models or use fully qualified name
-from app.models.transaction import Transaction  # Add this import
+from app.models.transaction import Transaction 
+from app.models.health import HeartRate, Sleep, Activity
+from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 class User(Base):
     __tablename__ = 'user'
@@ -21,3 +24,32 @@ class User(Base):
     heart_rates = relationship('HeartRate', back_populates='user')
     sleep = relationship('Sleep', back_populates='user')
     activity = relationship('Activity', back_populates='user')
+
+
+class UserRegister(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+    confirm_password: str
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    created_at: datetime
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
+class TokenData(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None

@@ -40,7 +40,7 @@ templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "t
 # Add routers
 app.include_router(health_router, prefix="/api/health", tags=["health"])
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
-app.include_router(api_connections_router, prefix="/api/connections", tags=["api_connections"])
+app.include_router(api_connections_router, prefix="/api", tags=["api_connections"])
 app.include_router(finance_router, prefix="/api/finance", tags=["finance"])  # NOWY ROUTER
 
 @app.get("/", response_class=HTMLResponse)
