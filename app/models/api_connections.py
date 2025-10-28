@@ -1,8 +1,10 @@
 # app/models/api_connection.py
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON
+from typing import Any
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON, Optional, Dict
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database.db_setup import Base
+from pydantic import BaseModel
 
 
 class ApiConnection(Base):
@@ -26,3 +28,23 @@ class ApiConnection(Base):
 
     # Define the relationship from this side
     user = relationship("User", back_populates="api_connections")
+
+
+# Schematy Pydantic
+class ApiConnectionCreate(BaseModel):
+    provider: str
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    token_expires_at: Optional[datetime] = None
+    connection_data: Optional[Dict[str, Any]] = None
+
+
+class ApiConnectionResponse(BaseModel):
+    id: int
+    provider: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

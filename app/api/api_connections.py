@@ -6,38 +6,19 @@ from starlette.responses import RedirectResponse
 
 from app.services.auth import get_current_user
 from app.models.user import User
+from app.models.api_connections import ApiConnection, ApiConnectionCreate, ApiConnectionResponse
 from database.db_setup import get_db
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
+from typing import  Dict, Any, List
 import os
 import dotenv
 from datetime import datetime, timedelta
 import secrets
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, JSON
 from database.db_setup import Base
 import requests
 
 dotenv.load_dotenv()
 
 
-# Schematy Pydantic
-class ApiConnectionCreate(BaseModel):
-    provider: str
-    access_token: Optional[str] = None
-    refresh_token: Optional[str] = None
-    token_expires_at: Optional[datetime] = None
-    connection_data: Optional[Dict[str, Any]] = None
-
-
-class ApiConnectionResponse(BaseModel):
-    id: int
-    provider: str
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # Router dla połączeń API
@@ -46,7 +27,6 @@ router = APIRouter(
     tags=["API Connections"],
     responses={404: {"description": "Not found"}}
 )
-
 
 @router.get("/", response_model=List[ApiConnectionResponse])
 async def get_user_api_connections(
@@ -80,7 +60,7 @@ async def create_api_connection(
 
     if existing_connection:
         # Aktualizacja istniejącego połączenia
-        for key, value in connection_data.dict().items():
+        for key, value in connection_data.model_dump().items(): # Zmieniono .dict() na .model_dump()
             if value is not None:
                 setattr(existing_connection, key, value)
 
@@ -94,7 +74,7 @@ async def create_api_connection(
     # Utworzenie nowego połączenia
     new_connection = ApiConnection(
         user_id=current_user.id,
-        **connection_data.dict()
+        **connection_data.model_dump() # Zmieniono .dict() na .model_dump()
     )
 
     db.add(new_connection)
