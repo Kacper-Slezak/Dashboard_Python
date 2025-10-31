@@ -27,4 +27,4 @@ RUN useradd -m -u 1001 appuser
 USER appuser
 
 # SRE: Poprawiona ścieżka CMD (main.py jest w /app, nie /app/app)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

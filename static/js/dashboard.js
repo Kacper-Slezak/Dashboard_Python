@@ -1,7 +1,7 @@
 async function loadDashboardData() {
     try {
         const response = await fetch('/api/health/dashboard');
-        const { data } = await response.json();
+        const data = await response.json()
         
         // Aktualizacja statystyk
         document.getElementById('dailySteps').textContent = data.daily_stats.steps;

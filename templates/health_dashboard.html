@@ -514,7 +514,7 @@
     const ctx = document.getElementById('activityChart').getContext('2d');
 
     // Destroy existing chart if it exists
-    if (window.activityChart) {
+    if (window.activityChart instanceof Chart) {
         window.activityChart.destroy();
     }
 
@@ -582,7 +582,7 @@ function createHeartRateChart(data) {
     const ctx = document.getElementById('heartRateChart').getContext('2d');
 
     // Destroy existing chart if it exists
-    if (window.heartRateChart) {
+    if (window.heartRateChart instanceof Chart) {
         window.heartRateChart.destroy();
     }
 
@@ -641,7 +641,7 @@ function createSleepChart(data) {
     const ctx = document.getElementById('sleepChart').getContext('2d');
 
     // Destroy existing chart if it exists
-    if (window.sleepChart) {
+    if (window.sleepChart instanceof Chart) {
         window.sleepChart.destroy();
     }
 
@@ -711,7 +711,7 @@ function createWeightChart(data) {
     const ctx = document.getElementById('weightChart').getContext('2d');
 
     // Destroy existing chart if it exists
-    if (window.weightChart) {
+    if (window.weightChart instanceof Chart) {
         window.weightChart.destroy();
     }
 
